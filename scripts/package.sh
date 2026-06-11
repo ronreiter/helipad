@@ -17,8 +17,9 @@ swift build -c release --arch arm64 --arch x86_64
 BIN=.build/apple/Products/Release/Helipad
 
 echo "== bundle =="
-rm -rf dist && mkdir -p dist/Helipad.app/Contents/MacOS
+rm -rf dist && mkdir -p dist/Helipad.app/Contents/MacOS dist/Helipad.app/Contents/Resources
 cp "$BIN" dist/Helipad.app/Contents/MacOS/Helipad
+cp packaging/AppIcon.icns dist/Helipad.app/Contents/Resources/AppIcon.icns
 sed "s/VERSION_PLACEHOLDER/$VERSION/g" packaging/Info.plist > dist/Helipad.app/Contents/Info.plist
 printf 'APPL????' > dist/Helipad.app/Contents/PkgInfo
 

@@ -66,6 +66,9 @@ struct PullRequest: Identifiable, Decodable {
             }
         }
 
+        /// Statuses that mean the ball is in the author's court.
+        static let blockedOnMe: Set<Status> = [.approved, .changesRequested]
+
         /// Statuses that mean the PR needs the author's attention.
         static let needsAttention: Set<Status> = [.approved, .changesRequested]
     }

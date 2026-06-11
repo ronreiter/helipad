@@ -16,13 +16,24 @@ final class PRStore: ObservableObject {
     @Published var enabledFilters: Set<PullRequest.Status>
 
     private var cursor: String?
+    private var loadMoreFailures = 0
     private var timer: Timer?
     static let refreshInterval: TimeInterval = 300
     private static let archivedKey = "archivedPRs"
     private static let filtersKey = "statusFilters"
 
+    /// PRs filtered by the user's custom filter selection ("All PRs" tab).
     var activePRs: [PullRequest] {
         prs.filter { !archivedURLs.contains($0.url) && !$0.statuses.isDisjoint(with: enabledFilters) }
+    }
+
+    /// Approved or changes-requested: the ball is in the author's court.
+    var blockedOnMePRs: [PullRequest] {
+        prs.filter { !archivedURLs.contains($0.url) && !$0.statuses.isDisjoint(with: PullRequest.Status.blockedOnMe) }
+    }
+
+    var needsReviewPRs: [PullRequest] {
+        prs.filter { !archivedURLs.contains($0.url) && $0.statuses.contains(.needsReview) }
     }
 
     var archivedPRs: [PullRequest] {
@@ -104,6 +115,7 @@ final class PRStore: ObservableObject {
                     self.lastUpdated = Date()
                     self.errorMessage = nil
                     self.isLoading = false
+                    self.fillIfNeeded()
                 }
             } catch {
                 await MainActor.run {
@@ -127,12 +139,29 @@ final class PRStore: ObservableObject {
                     self.cursor = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : nil
                     self.hasMore = self.cursor != nil
                     self.isLoadingMore = false
+                    self.loadMoreFailures = 0
+                    self.fillIfNeeded()
                 }
             } catch {
                 await MainActor.run {
                     self.isLoadingMore = false
+                    // GitHub search 502s in streaks; retry shortly, bounded
+                    self.loadMoreFailures += 1
+                    if self.loadMoreFailures < 5 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                            self.fillIfNeeded()
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    /// Filters can hide most of a page, leaving a tab too short to scroll —
+    /// keep fetching until every tab has enough rows or pages run out.
+    private func fillIfNeeded() {
+        if hasMore && min(blockedOnMePRs.count, needsReviewPRs.count, activePRs.count) < 30 {
+            loadMore()
         }
     }
 }

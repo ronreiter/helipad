@@ -5,11 +5,13 @@ struct PanelView: View {
     @ObservedObject var store: PRStore
 
     enum Tab {
-        case prs
+        case blockedOnMe
+        case needsReview
         case archived
+        case all
     }
 
-    @State private var tab: Tab = .prs
+    @State private var tab: Tab = .blockedOnMe
     @State private var showAbout = false
 
     var body: some View {
@@ -26,11 +28,14 @@ struct PanelView: View {
     private var tabPicker: some View {
         let more = store.hasMore ? "+" : ""
         return Picker("", selection: $tab) {
-            Text("PRs (\(store.activePRs.count)\(more))").tag(Tab.prs)
+            Text("Blocked on me (\(store.blockedOnMePRs.count)\(more))").tag(Tab.blockedOnMe)
+            Text("Needs review (\(store.needsReviewPRs.count)\(more))").tag(Tab.needsReview)
             Text("Archived (\(store.archivedPRs.count)\(more))").tag(Tab.archived)
+            Text("All (\(store.activePRs.count)\(more))").tag(Tab.all)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
     }
@@ -51,7 +56,10 @@ struct PanelView: View {
                 ForEach(PullRequest.Status.allCases, id: \.self) { status in
                     Toggle(status.label, isOn: Binding(
                         get: { store.enabledFilters.contains(status) },
-                        set: { _ in store.toggleFilter(status) }
+                        set: { _ in
+                            store.toggleFilter(status)
+                            selectTab(forFilters: store.enabledFilters)
+                        }
                     ))
                 }
             } label: {
@@ -120,10 +128,10 @@ struct PanelView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if visiblePRs.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: tab == .prs ? "checkmark.circle" : "archivebox")
+                Image(systemName: tab == .archived ? "archivebox" : "checkmark.circle")
                     .font(.largeTitle)
-                    .foregroundStyle(tab == .prs ? .green : .secondary)
-                Text(tab == .prs ? "No open Claude PRs" : "No archived PRs")
+                    .foregroundStyle(tab == .archived ? Color.secondary : Color.green)
+                Text(emptyMessage)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -149,6 +157,9 @@ struct PanelView: View {
                             Spacer()
                         }
                         .padding(.vertical, 10)
+                        // re-create the row per page so onAppear fires again
+                        // while it stays visible (e.g. filters hide most rows)
+                        .id(store.prs.count)
                         .onAppear {
                             store.loadMore()
                         }
@@ -159,7 +170,33 @@ struct PanelView: View {
     }
 
     private var visiblePRs: [PullRequest] {
-        tab == .prs ? store.activePRs : store.archivedPRs
+        switch tab {
+        case .blockedOnMe: return store.blockedOnMePRs
+        case .needsReview: return store.needsReviewPRs
+        case .archived: return store.archivedPRs
+        case .all: return store.activePRs
+        }
+    }
+
+    private var emptyMessage: String {
+        switch tab {
+        case .blockedOnMe: return "Nothing blocked on you"
+        case .needsReview: return "Nothing waiting for review"
+        case .archived: return "No archived PRs"
+        case .all: return "No PRs match the filters"
+        }
+    }
+
+    /// Filter changes jump to the tab that matches the selection; custom
+    /// combinations land on All PRs.
+    func selectTab(forFilters filters: Set<PullRequest.Status>) {
+        if filters == PullRequest.Status.blockedOnMe {
+            tab = .blockedOnMe
+        } else if filters == [.needsReview] {
+            tab = .needsReview
+        } else {
+            tab = .all
+        }
     }
 }
 

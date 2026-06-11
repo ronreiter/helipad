@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 /// Opens the Claude Code session behind a PR.
 ///
@@ -141,12 +142,35 @@ struct SessionFinder {
             ? directory
             : FileManager.default.homeDirectoryForCurrentUser.path
         let full = "cd '\(dir)' && \(command)"
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(full.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))"
-        end tell
-        """
+        let escaped = full
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        let script: String
+        if NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") != nil {
+            script = """
+            tell application "iTerm"
+                activate
+                set newWindow to (create window with default profile)
+                tell current session of newWindow
+                    write text "\(escaped)"
+                end tell
+            end tell
+            """
+        } else if NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.mitchellh.ghostty") != nil {
+            let open = Process()
+            open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            open.arguments = ["-na", "Ghostty", "--args", "-e", "/bin/zsh", "-ic", full]
+            try? open.run()
+            return
+        } else {
+            script = """
+            tell application "Terminal"
+                activate
+                do script "\(escaped)"
+            end tell
+            """
+        }
         let osascript = Process()
         osascript.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         osascript.arguments = ["-e", script]
