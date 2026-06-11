@@ -67,7 +67,8 @@
     border-radius: 12px;
     padding: 20px;
   }
-  .card .icon { font-size: 30px; margin-bottom: 10px; }
+  .card .icon { margin-bottom: 10px; color: var(--accent); }
+  .card .icon svg { display: block; }
   .card h3 { font-size: 16px; margin-bottom: 6px; }
   .card p { font-size: 14px; color: var(--muted); }
   .badge-row { display: flex; gap: 8px; margin-top: 12px; }
@@ -126,38 +127,38 @@
   <h2>Features</h2>
   <div class="grid">
     <div class="card">
-      <div class="icon">🛬</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-list-check" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3.5 5.5l1.5 1.5l2.5 -2.5" /><path d="M3.5 11.5l1.5 1.5l2.5 -2.5" /><path d="M3.5 17.5l1.5 1.5l2.5 -2.5" /><path d="M11 6l9 0" /><path d="M11 12l9 0" /><path d="M11 18l9 0" /></svg></div>
       <h3>Status at a glance</h3>
       <p>Every PR shows CI state, review decision, and merge-conflict warnings — sorted by most recently updated, refreshed every 5 minutes, with more loading as you scroll.</p>
       <div class="badge-row"><span class="pill pill-green">CI ✓</span><span class="pill pill-blue">Needs review</span><span class="pill pill-red">Conflicts</span></div>
     </div>
     <div class="card">
-      <div class="icon">🎯</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-target-arrow" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 7a5 5 0 1 0 5 5" /><path d="M13 3.055a9 9 0 1 0 7.941 7.945" /><path d="M15 6v3h3l3 -3h-3v-3z" /><path d="M15 9l-3 3" /></svg></div>
       <h3>Shows what needs you</h3>
       <p>Status filters default to PRs awaiting your action — approved and ready to merge, or sent back with changes requested. Toggle in any status you want to watch.</p>
     </div>
     <div class="card">
-      <div class="icon">🔍</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-search" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg></div>
       <h3>Finds Claude's PRs automatically</h3>
       <p>Searches GitHub for open PRs you authored containing the "Generated with Claude Code" attribution — no configuration, works across all your repos.</p>
     </div>
     <div class="card">
-      <div class="icon">⚡</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-terminal-2" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9l3 3l-3 3" /><path d="M13 15l3 0" /><path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /></svg></div>
       <h3>Jump into the session</h3>
       <p>The Session button opens the Claude Code session behind a PR — attaching live with <code>claude attach</code> if the agent is still running, or resuming it if finished, using Claude Code's own job-to-PR links.</p>
     </div>
     <div class="card">
-      <div class="icon">📌</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-pin" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4" /><path d="M9 15l-4.5 4.5" /><path d="M14.5 4l5.5 5.5" /></svg></div>
       <h3>Stays out of the way</h3>
       <p>A non-activating floating panel: always on top, visible on every Space, draggable anywhere, with a menu-bar toggle and no dock icon.</p>
     </div>
     <div class="card">
-      <div class="icon">🗂️</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-archive" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10" /><path d="M10 12l4 0" /></svg></div>
       <h3>Per-PR actions</h3>
       <p>Archive PRs you're done with into a separate tab, open the local repo folder in Finder, or open the PR in your browser — right from each row.</p>
     </div>
     <div class="card">
-      <div class="icon">🪶</div>
+      <div class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-feather" ><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 20l10 -10m0 -5v5h5m-9 -1v5h5m-9 -1v5h5m-5 -5l4 -4l4 -4" /><path d="M19 10c.638 -.636 1 -1.515 1 -2.486a3.515 3.515 0 0 0 -3.517 -3.514c-.97 0 -1.847 .367 -2.483 1m-3 13l4 -4l4 -4" /></svg></div>
       <h3>Native &amp; tiny</h3>
       <p>Pure Swift (AppKit + SwiftUI), zero dependencies, talks to GitHub through your existing authenticated <code>gh</code> CLI.</p>
     </div>
