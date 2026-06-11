@@ -117,7 +117,6 @@ struct PRRow: View {
     let onArchiveToggle: () -> Void
     @State private var isHovering = false
     @State private var isFindingSession = false
-    @State private var sessionNotFound = false
 
     private var localFolder: URL? {
         let url = FileManager.default.homeDirectoryForCurrentUser
@@ -170,10 +169,10 @@ struct PRRow: View {
                         ProgressView()
                             .controlSize(.mini)
                     } else {
-                        Label(sessionNotFound ? "No Session" : "Session", systemImage: "terminal")
+                        Label("Session", systemImage: "terminal")
                     }
                 }
-                .disabled(isFindingSession || sessionNotFound)
+                .disabled(isFindingSession)
                 Button {
                     openPR()
                 } label: {
@@ -187,12 +186,8 @@ struct PRRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
         .background(isHovering ? Color.primary.opacity(0.06) : Color.clear)
         .onHover { isHovering = $0 }
-        .onTapGesture {
-            openPR()
-        }
     }
 
     private func openPR() {
@@ -205,13 +200,9 @@ struct PRRow: View {
         isFindingSession = true
         let pr = self.pr
         DispatchQueue.global(qos: .userInitiated).async {
-            let session = SessionFinder.findSession(for: pr)
-            if let session {
-                SessionFinder.openInTerminal(session)
-            }
+            SessionFinder.open(for: pr)
             DispatchQueue.main.async {
                 isFindingSession = false
-                sessionNotFound = (session == nil)
             }
         }
     }

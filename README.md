@@ -17,7 +17,7 @@ Each row has four actions:
 
 - **Archive** — move the PR to the Archived tab (persisted across refreshes; doesn't touch GitHub)
 - **Open Folder** — open `~/GitHub/<repo>` in Finder (disabled if not cloned locally)
-- **Session** — find the local Claude Code session that worked on this PR (by searching `~/.claude/projects` transcripts for the PR URL) and reopen it in Terminal — `claude attach` if it's still running as a background agent, `claude --resume` otherwise
+- **Session** — open the Claude Code session behind this PR in Terminal: if a running background agent's transcript mentions the PR it attaches live (`claude attach`), otherwise it uses Claude Code's own PR-to-session tracking (`claude --from-pr`)
 - **Open PR** — open the PR in your browser (clicking the row does the same)
 
 The list refreshes automatically every 5 minutes.
