@@ -23,7 +23,13 @@ final class PRStore: ObservableObject {
         prs.filter { archivedURLs.contains($0.url) }
     }
 
+    let isDemo = CommandLine.arguments.contains("--demo")
+
     init() {
+        if isDemo {
+            archivedURLs = DemoData.archivedURLs
+            return
+        }
         // "dismissedPRs" is the legacy key from when archiving was "Remove"
         let stored = UserDefaults.standard.stringArray(forKey: Self.archivedKey)
             ?? UserDefaults.standard.stringArray(forKey: "dismissedPRs")
@@ -42,10 +48,17 @@ final class PRStore: ObservableObject {
     }
 
     private func persistArchived() {
+        guard !isDemo else { return }
         UserDefaults.standard.set(Array(archivedURLs), forKey: Self.archivedKey)
     }
 
     func start() {
+        if isDemo {
+            prs = DemoData.prs + [DemoData.archivedPR]
+            totalCount = DemoData.totalCount
+            lastUpdated = Date()
+            return
+        }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -55,7 +68,7 @@ final class PRStore: ObservableObject {
     }
 
     func refresh() {
-        guard !isLoading else { return }
+        guard !isLoading, !isDemo else { return }
         isLoading = true
         Task.detached(priority: .userInitiated) {
             do {

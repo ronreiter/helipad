@@ -55,6 +55,12 @@ struct SearchResponse: Decodable {
 
     struct Search: Decodable {
         let issueCount: Int
+        let pageInfo: PageInfo
         let nodes: [PullRequest]
+    }
+
+    struct PageInfo: Decodable {
+        let hasNextPage: Bool
+        let endCursor: String?
     }
 }

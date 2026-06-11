@@ -39,13 +39,6 @@ struct PanelView: View {
                 .foregroundStyle(.orange)
             Text("Helipad")
                 .font(.headline)
-            if store.totalCount > 0 {
-                Text("\(store.totalCount)")
-                    .font(.caption.bold())
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.orange.opacity(0.25)))
-            }
             Spacer()
             if let updated = store.lastUpdated {
                 Text(updated, style: .time)
@@ -71,7 +64,7 @@ struct PanelView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let error = store.errorMessage {
+        if let error = store.errorMessage, store.prs.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.largeTitle)
