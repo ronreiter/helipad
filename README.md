@@ -27,7 +27,11 @@ A filter menu (funnel icon) controls which statuses are shown; by default only P
 - macOS 13+
 - [`gh` CLI](https://cli.github.com) installed and authenticated (`gh auth login`)
 
-## Build & run
+## Install
+
+Download the signed & notarized build from the [latest release](https://github.com/ronreiter/helipad/releases/latest), unzip, and drag `Helipad.app` to Applications. Every push to `main` publishes a new release automatically.
+
+## Build & run from source
 
 ```sh
 swift build -c release

@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      VERSION: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Import signing certificate
+        env:
+          DEVID_P12_BASE64: ${{ secrets.DEVID_P12_BASE64 }}
+          DEVID_P12_PASSWORD: ${{ secrets.DEVID_P12_PASSWORD }}
+        run: |
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -t 3600 build.keychain
+          echo "$DEVID_P12_BASE64" | base64 -d > cert.p12
+          security import cert.p12 -k build.keychain -P "$DEVID_P12_PASSWORD" -T /usr/bin/codesign
+          rm cert.p12
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Write notary key
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+        run: echo "$NOTARY_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build, sign, notarize
+        env:
+          SIGN_ID: "Developer ID Application: Ron Reiter (8BKF8DY7Y4)"
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          export NOTARY_KEY="$RUNNER_TEMP/AuthKey.p8"
+          ./scripts/package.sh
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" "dist/Helipad-$VERSION.zip" \
+            --title "Helipad $VERSION" \
+            --notes "Signed and notarized macOS build of commit ${GITHUB_SHA::7}. Unzip and drag Helipad.app to /Applications."

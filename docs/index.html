@@ -100,8 +100,8 @@
   <h1>Helipad</h1>
   <p class="tagline">A floating macOS panel with every open PR Claude Code created for you — CI state, review state, and a one-click jump back into the Claude session that wrote it.</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad">View on GitHub</a>
-    <a class="btn btn-secondary" href="#install">Install</a>
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest">Download for macOS</a>
+    <a class="btn btn-secondary" href="https://github.com/ronreiter/helipad">View on GitHub</a>
   </div>
 </header>
 
@@ -124,7 +124,11 @@
     <div class="card">
       <div class="badge-row"><span class="pill pill-green">CI ✓</span><span class="pill pill-blue">Needs review</span><span class="pill pill-red">Conflicts</span></div>
       <h3>Status at a glance</h3>
-      <p>Every PR shows CI state, review decision, and merge-conflict warnings — sorted by most recently updated, refreshed every 5 minutes.</p>
+      <p>Every PR shows CI state, review decision, and merge-conflict warnings — sorted by most recently updated, refreshed every 5 minutes, with more loading as you scroll.</p>
+    </div>
+    <div class="card">
+      <h3>Shows what needs you</h3>
+      <p>Status filters default to PRs awaiting your action — approved and ready to merge, or sent back with changes requested. Toggle in any status you want to watch.</p>
     </div>
     <div class="card">
       <h3>Finds Claude's PRs automatically</h3>
@@ -132,7 +136,7 @@
     </div>
     <div class="card">
       <h3>Jump into the session</h3>
-      <p>The Session button locates the local Claude Code session that worked on a PR and reopens it — attaching live with <code>claude attach</code> if the agent is still running, or resuming the transcript if it finished.</p>
+      <p>The Session button opens the Claude Code session behind a PR — attaching live with <code>claude attach</code> if the agent is still running, or resuming it if finished, using Claude Code's own job-to-PR links.</p>
     </div>
     <div class="card">
       <h3>Stays out of the way</h3>
@@ -151,6 +155,11 @@
 
 <section class="wrap" id="install">
   <h2>Install</h2>
+  <p style="color: var(--muted); margin-bottom: 16px;">
+    Grab the signed &amp; notarized build from the
+    <a href="https://github.com/ronreiter/helipad/releases/latest" style="color: var(--accent);">latest release</a>,
+    unzip, and drag Helipad.app to Applications. Or build from source:
+  </p>
   <pre><span class="c"># Requirements: macOS 13+, gh CLI authenticated (gh auth login)</span>
 git clone https://github.com/ronreiter/helipad.git
 cd helipad
