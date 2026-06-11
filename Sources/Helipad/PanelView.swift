@@ -4,21 +4,40 @@ import AppKit
 struct PanelView: View {
     @ObservedObject var store: PRStore
 
+    enum Tab {
+        case prs
+        case archived
+    }
+
+    @State private var tab: Tab = .prs
+
     var body: some View {
         VStack(spacing: 0) {
             header
+            tabPicker
             Divider()
             content
         }
-        .frame(width: 400, height: 520)
+        .frame(width: 430, height: 520)
         .background(.ultraThinMaterial)
+    }
+
+    private var tabPicker: some View {
+        Picker("", selection: $tab) {
+            Text("PRs (\(store.activePRs.count))").tag(Tab.prs)
+            Text("Archived (\(store.archivedPRs.count))").tag(Tab.archived)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "sparkles")
+            Image(systemName: "airplane.arrival")
                 .foregroundStyle(.orange)
-            Text("Claude PRs")
+            Text("Helipad")
                 .font(.headline)
             if store.totalCount > 0 {
                 Text("\(store.totalCount)")
@@ -66,21 +85,25 @@ struct PanelView: View {
         } else if store.prs.isEmpty && store.lastUpdated == nil {
             ProgressView("Loading PRs…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if store.prs.isEmpty {
+        } else if visiblePRs.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: "checkmark.circle")
+                Image(systemName: tab == .prs ? "checkmark.circle" : "archivebox")
                     .font(.largeTitle)
-                    .foregroundStyle(.green)
-                Text("No open Claude PRs")
+                    .foregroundStyle(tab == .prs ? .green : .secondary)
+                Text(tab == .prs ? "No open Claude PRs" : "No archived PRs")
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(store.prs) { pr in
-                        PRRow(pr: pr) {
-                            store.dismiss(pr)
+                    ForEach(visiblePRs) { pr in
+                        PRRow(pr: pr, isArchived: tab == .archived) {
+                            if tab == .archived {
+                                store.unarchive(pr)
+                            } else {
+                                store.archive(pr)
+                            }
                         }
                         Divider()
                             .padding(.leading, 12)
@@ -89,11 +112,16 @@ struct PanelView: View {
             }
         }
     }
+
+    private var visiblePRs: [PullRequest] {
+        tab == .prs ? store.activePRs : store.archivedPRs
+    }
 }
 
 struct PRRow: View {
     let pr: PullRequest
-    let onRemove: () -> Void
+    let isArchived: Bool
+    let onArchiveToggle: () -> Void
     @State private var isHovering = false
     @State private var isFindingSession = false
     @State private var sessionNotFound = false
@@ -128,13 +156,18 @@ struct PRRow: View {
             }
             HStack(spacing: 6) {
                 Spacer()
-                Button("Remove") {
-                    onRemove()
+                Button {
+                    onArchiveToggle()
+                } label: {
+                    Label(isArchived ? "Unarchive" : "Archive",
+                          systemImage: isArchived ? "tray.and.arrow.up" : "archivebox")
                 }
-                Button("Open Folder") {
+                Button {
                     if let folder = localFolder {
                         NSWorkspace.shared.open(folder)
                     }
+                } label: {
+                    Label("Folder", systemImage: "folder")
                 }
                 .disabled(localFolder == nil)
                 Button {
@@ -144,12 +177,14 @@ struct PRRow: View {
                         ProgressView()
                             .controlSize(.mini)
                     } else {
-                        Text(sessionNotFound ? "No Session" : "Session")
+                        Label(sessionNotFound ? "No Session" : "Session", systemImage: "terminal")
                     }
                 }
                 .disabled(isFindingSession || sessionNotFound)
-                Button("Open PR") {
+                Button {
                     openPR()
+                } label: {
+                    Label("Open PR", systemImage: "arrow.up.right.square")
                 }
             }
             .buttonStyle(.bordered)

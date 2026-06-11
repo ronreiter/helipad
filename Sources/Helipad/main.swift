@@ -21,7 +21,7 @@ if CommandLine.arguments.contains("--dump") {
 final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 430, height: 520),
             styleMask: [.nonactivatingPanel, .titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
             systemSymbolName: "sparkles.rectangle.stack",
-            accessibilityDescription: "Claude PRs"
+            accessibilityDescription: "Helipad"
         )
 
         let menu = NSMenu()

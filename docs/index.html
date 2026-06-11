@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude PR Hover — your Claude Code PRs, always on screen</title>
+<title>Helipad — your Claude Code PRs, always on screen</title>
 <meta name="description" content="A floating macOS panel that shows all your open Claude Code-generated pull requests with CI and review status, and jumps you back into the Claude session behind each PR.">
 <style>
   :root {
@@ -97,16 +97,16 @@
 
 <header class="wrap">
   <div class="sparkle">✨</div>
-  <h1>Claude PR Hover</h1>
+  <h1>Helipad</h1>
   <p class="tagline">A floating macOS panel with every open PR Claude Code created for you — CI state, review state, and a one-click jump back into the Claude session that wrote it.</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/ronreiter/claude-pr-hover">View on GitHub</a>
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad">View on GitHub</a>
     <a class="btn btn-secondary" href="#install">Install</a>
   </div>
 </header>
 
 <div class="shot wrap">
-  <img src="screenshot.png" alt="Claude PR Hover floating panel showing open PRs with CI and review badges">
+  <img src="screenshot.png" alt="Helipad floating panel showing open PRs with CI and review badges">
 </div>
 
 <section class="wrap">
@@ -114,7 +114,7 @@
   <p style="color: var(--muted); max-width: 720px;">
     When Claude Code agents are opening pull requests for you all day — across many repos, from many sessions —
     the bottleneck becomes <em>you</em>: noticing which PRs are green, which need another round, and which agent
-    session to jump back into. Claude PR Hover keeps that list hovering on top of everything, always current.
+    session to jump back into. Helipad keeps that list hovering on top of everything, always current.
   </p>
 </section>
 
@@ -140,7 +140,7 @@
     </div>
     <div class="card">
       <h3>Per-PR actions</h3>
-      <p>Remove a PR from the list, open its local repo folder in Finder, open the PR in your browser — right from each row.</p>
+      <p>Archive PRs you're done with into a separate tab, open the local repo folder in Finder, or open the PR in your browser — right from each row.</p>
     </div>
     <div class="card">
       <h3>Native &amp; tiny</h3>
@@ -152,19 +152,19 @@
 <section class="wrap" id="install">
   <h2>Install</h2>
   <pre><span class="c"># Requirements: macOS 13+, gh CLI authenticated (gh auth login)</span>
-git clone https://github.com/ronreiter/claude-pr-hover.git
-cd claude-pr-hover
+git clone https://github.com/ronreiter/helipad.git
+cd helipad
 swift build -c release
-.build/release/ClaudePRHover &amp;</pre>
+.build/release/Helipad &amp;</pre>
   <p style="color: var(--muted); margin-top: 12px; font-size: 14px;">
-    To start at login, copy <code>.build/release/ClaudePRHover</code> somewhere stable and add it as a
+    To start at login, copy <code>.build/release/Helipad</code> somewhere stable and add it as a
     Login Item in System Settings → General → Login Items.
   </p>
 </section>
 
 <footer>
   MIT licensed · Built with <a href="https://claude.com/claude-code">Claude Code</a> ·
-  <a href="https://github.com/ronreiter/claude-pr-hover">github.com/ronreiter/claude-pr-hover</a>
+  <a href="https://github.com/ronreiter/helipad">github.com/ronreiter/helipad</a>
 </footer>
 
 </body>

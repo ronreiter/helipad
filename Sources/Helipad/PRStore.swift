@@ -9,19 +9,40 @@ final class PRStore: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLoading = false
 
-    private var timer: Timer?
-    private var dismissedURLs: Set<String>
-    static let refreshInterval: TimeInterval = 300
-    private static let dismissedKey = "dismissedPRs"
+    @Published var archivedURLs: Set<String>
 
-    init() {
-        dismissedURLs = Set(UserDefaults.standard.stringArray(forKey: Self.dismissedKey) ?? [])
+    private var timer: Timer?
+    static let refreshInterval: TimeInterval = 300
+    private static let archivedKey = "archivedPRs"
+
+    var activePRs: [PullRequest] {
+        prs.filter { !archivedURLs.contains($0.url) }
     }
 
-    func dismiss(_ pr: PullRequest) {
-        dismissedURLs.insert(pr.url)
-        UserDefaults.standard.set(Array(dismissedURLs), forKey: Self.dismissedKey)
-        prs.removeAll { $0.url == pr.url }
+    var archivedPRs: [PullRequest] {
+        prs.filter { archivedURLs.contains($0.url) }
+    }
+
+    init() {
+        // "dismissedPRs" is the legacy key from when archiving was "Remove"
+        let stored = UserDefaults.standard.stringArray(forKey: Self.archivedKey)
+            ?? UserDefaults.standard.stringArray(forKey: "dismissedPRs")
+            ?? []
+        archivedURLs = Set(stored)
+    }
+
+    func archive(_ pr: PullRequest) {
+        archivedURLs.insert(pr.url)
+        persistArchived()
+    }
+
+    func unarchive(_ pr: PullRequest) {
+        archivedURLs.remove(pr.url)
+        persistArchived()
+    }
+
+    private func persistArchived() {
+        UserDefaults.standard.set(Array(archivedURLs), forKey: Self.archivedKey)
     }
 
     func start() {
@@ -40,7 +61,7 @@ final class PRStore: ObservableObject {
             do {
                 let result = try GitHubClient.fetchPullRequests()
                 await MainActor.run {
-                    self.prs = result.prs.filter { !self.dismissedURLs.contains($0.url) }
+                    self.prs = result.prs
                     self.totalCount = result.total
                     self.lastUpdated = Date()
                     self.errorMessage = nil
