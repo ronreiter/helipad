@@ -76,33 +76,37 @@ struct SessionFinder {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
-    /// True if the session is currently running as a background agent
-    /// (those can't be resumed directly — they're attached via `claude agents`).
-    static func isActiveBackgroundAgent(_ session: Session) -> Bool {
-        guard let claude = claudePath() else { return false }
+    /// If the session is currently running as a background agent, returns its
+    /// short agent ID for `claude attach` (running agents can't be resumed).
+    static func activeAgentID(_ session: Session) -> String? {
+        guard let claude = claudePath() else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: claude)
         process.arguments = ["agents", "--json"]
         let stdout = Pipe()
         process.standardOutput = stdout
         process.standardError = Pipe()
-        guard (try? process.run()) != nil else { return false }
+        guard (try? process.run()) != nil else { return nil }
         let output = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard
             let json = try? JSONSerialization.jsonObject(with: output),
             let sessions = json as? [[String: Any]]
-        else { return false }
-        return sessions.contains { $0["sessionId"] as? String == session.id }
+        else { return nil }
+        let match = sessions.first { $0["sessionId"] as? String == session.id }
+        return match?["id"] as? String
     }
 
     static func openInTerminal(_ session: Session) {
         let dir = FileManager.default.fileExists(atPath: session.cwd)
             ? session.cwd
             : FileManager.default.homeDirectoryForCurrentUser.path
-        let claudeCommand = isActiveBackgroundAgent(session)
-            ? "claude agents"
-            : "claude --resume \(session.id)"
+        let claudeCommand: String
+        if let agentID = activeAgentID(session) {
+            claudeCommand = "claude attach \(agentID)"
+        } else {
+            claudeCommand = "claude --resume \(session.id)"
+        }
         let command = "cd '\(dir)' && \(claudeCommand)"
         let script = """
         tell application "Terminal"
