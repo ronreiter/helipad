@@ -67,9 +67,10 @@
     border-radius: 12px;
     padding: 20px;
   }
+  .card .icon { font-size: 30px; margin-bottom: 10px; }
   .card h3 { font-size: 16px; margin-bottom: 6px; }
   .card p { font-size: 14px; color: var(--muted); }
-  .badge-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .badge-row { display: flex; gap: 8px; margin-top: 12px; }
   .pill {
     font-size: 12px;
     padding: 2px 10px;
@@ -114,8 +115,7 @@
 </div>
 
 <section class="wrap">
-  <h2>Why</h2>
-  <p style="color: var(--muted); max-width: 720px;">
+  <p style="color: var(--text); font-size: 24px; line-height: 1.55;">
     When Claude Code agents are opening pull requests for you all day — across many repos, from many sessions —
     the bottleneck becomes <em>you</em>: noticing which PRs are green, which need another round, and which agent
     session to jump back into. Helipad keeps that list hovering on top of everything, always current.
@@ -126,31 +126,38 @@
   <h2>Features</h2>
   <div class="grid">
     <div class="card">
-      <div class="badge-row"><span class="pill pill-green">CI ✓</span><span class="pill pill-blue">Needs review</span><span class="pill pill-red">Conflicts</span></div>
+      <div class="icon">🛬</div>
       <h3>Status at a glance</h3>
       <p>Every PR shows CI state, review decision, and merge-conflict warnings — sorted by most recently updated, refreshed every 5 minutes, with more loading as you scroll.</p>
+      <div class="badge-row"><span class="pill pill-green">CI ✓</span><span class="pill pill-blue">Needs review</span><span class="pill pill-red">Conflicts</span></div>
     </div>
     <div class="card">
+      <div class="icon">🎯</div>
       <h3>Shows what needs you</h3>
       <p>Status filters default to PRs awaiting your action — approved and ready to merge, or sent back with changes requested. Toggle in any status you want to watch.</p>
     </div>
     <div class="card">
+      <div class="icon">🔍</div>
       <h3>Finds Claude's PRs automatically</h3>
       <p>Searches GitHub for open PRs you authored containing the "Generated with Claude Code" attribution — no configuration, works across all your repos.</p>
     </div>
     <div class="card">
+      <div class="icon">⚡</div>
       <h3>Jump into the session</h3>
       <p>The Session button opens the Claude Code session behind a PR — attaching live with <code>claude attach</code> if the agent is still running, or resuming it if finished, using Claude Code's own job-to-PR links.</p>
     </div>
     <div class="card">
+      <div class="icon">📌</div>
       <h3>Stays out of the way</h3>
       <p>A non-activating floating panel: always on top, visible on every Space, draggable anywhere, with a menu-bar toggle and no dock icon.</p>
     </div>
     <div class="card">
+      <div class="icon">🗂️</div>
       <h3>Per-PR actions</h3>
       <p>Archive PRs you're done with into a separate tab, open the local repo folder in Finder, or open the PR in your browser — right from each row.</p>
     </div>
     <div class="card">
+      <div class="icon">🪶</div>
       <h3>Native &amp; tiny</h3>
       <p>Pure Swift (AppKit + SwiftUI), zero dependencies, talks to GitHub through your existing authenticated <code>gh</code> CLI.</p>
     </div>
