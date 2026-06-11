@@ -10,6 +10,7 @@ struct PanelView: View {
     }
 
     @State private var tab: Tab = .prs
+    @State private var showAbout = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,6 +74,29 @@ struct PanelView: View {
             }
             .buttonStyle(.borderless)
             .disabled(store.isLoading)
+            Button {
+                showAbout.toggle()
+            } label: {
+                Image(systemName: "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .popover(isPresented: $showAbout) {
+                VStack(spacing: 10) {
+                    Image(systemName: "airplane.arrival")
+                        .font(.largeTitle)
+                        .foregroundStyle(.orange)
+                    Text("Helipad")
+                        .font(.title3.bold())
+                    Text("Your open Claude Code PRs,\nalways on screen.")
+                        .font(.callout)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                    Link("github.com/ronreiter/helipad",
+                         destination: URL(string: "https://github.com/ronreiter/helipad")!)
+                        .font(.callout)
+                }
+                .padding(20)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
