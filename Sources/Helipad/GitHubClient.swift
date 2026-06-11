@@ -17,7 +17,7 @@ enum GitHubClientError: Error, LocalizedError {
 struct GitHubClient {
     static let query = """
     query($cursor: String) {
-      search(query: "is:pr is:open draft:false author:@me \\"Generated with Claude Code\\" in:body sort:updated-desc", type: ISSUE, first: 50, after: $cursor) {
+      search(query: "is:pr is:open draft:false author:@me \\"Generated with Claude Code\\" in:body sort:updated-desc", type: ISSUE, first: 25, after: $cursor) {
         issueCount
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -37,26 +37,30 @@ struct GitHubClient {
     }
     """
 
-    static let maxPages = 10
+    static let maxPages = 20
 
     static func ghPath() -> String? {
         let candidates = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh"]
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
+    /// Fetches one page, retrying once (GitHub's search API 502s intermittently).
+    static func fetchPageWithRetry(cursor: String?) throws -> SearchResponse.Search {
+        do {
+            return try fetchPage(cursor: cursor)
+        } catch {
+            return try fetchPage(cursor: cursor)
+        }
+    }
+
+    /// Fetches everything (used by --dump).
     static func fetchPullRequests() throws -> (total: Int, prs: [PullRequest]) {
         var prs: [PullRequest] = []
         var total = 0
         var cursor: String?
 
         for _ in 0..<maxPages {
-            let search: SearchResponse.Search
-            do {
-                search = try fetchPage(cursor: cursor)
-            } catch {
-                // GitHub's search API 502s intermittently; one retry per page
-                search = try fetchPage(cursor: cursor)
-            }
+            let search = try fetchPageWithRetry(cursor: cursor)
             prs.append(contentsOf: search.nodes)
             total = search.issueCount
             guard search.pageInfo.hasNextPage, let next = search.pageInfo.endCursor else {

@@ -17,10 +17,10 @@ Each row has four actions:
 
 - **Archive** — move the PR to the Archived tab (persisted across refreshes; doesn't touch GitHub)
 - **Open Folder** — open `~/GitHub/<repo>` in Finder (disabled if not cloned locally)
-- **Session** — open the Claude Code session behind this PR in Terminal: if a running background agent's transcript mentions the PR it attaches live (`claude attach`), otherwise it uses Claude Code's own PR-to-session tracking (`claude --from-pr`)
+- **Session** — open the Claude Code session behind this PR in Terminal. Resolution order: the background-job registry (`~/.claude/jobs/*/state.json` links jobs to the PRs they created) — attaching live with `claude attach` if the agent is still running, or `claude --resume` if finished; then running agents whose transcript mentions the PR; then Claude Code's own `claude --from-pr` tracking
 - **Open PR** — open the PR in your browser (clicking the row does the same)
 
-The list refreshes automatically every 5 minutes.
+A filter menu (funnel icon) controls which statuses are shown; by default only PRs needing your attention appear (approved, changes requested, CI failed, conflicts). The first page loads immediately and more PRs load as you scroll. The list refreshes automatically every 5 minutes.
 
 ## Requirements
 

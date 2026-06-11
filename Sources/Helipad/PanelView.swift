@@ -23,9 +23,10 @@ struct PanelView: View {
     }
 
     private var tabPicker: some View {
-        Picker("", selection: $tab) {
-            Text("PRs (\(store.activePRs.count))").tag(Tab.prs)
-            Text("Archived (\(store.archivedPRs.count))").tag(Tab.archived)
+        let more = store.hasMore ? "+" : ""
+        return Picker("", selection: $tab) {
+            Text("PRs (\(store.activePRs.count)\(more))").tag(Tab.prs)
+            Text("Archived (\(store.archivedPRs.count)\(more))").tag(Tab.archived)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
@@ -45,6 +46,21 @@ struct PanelView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Menu {
+                ForEach(PullRequest.Status.allCases, id: \.self) { status in
+                    Toggle(status.label, isOn: Binding(
+                        get: { store.enabledFilters.contains(status) },
+                        set: { _ in store.toggleFilter(status) }
+                    ))
+                }
+            } label: {
+                Image(systemName: store.enabledFilters.count == PullRequest.Status.allCases.count
+                    ? "line.3.horizontal.decrease.circle"
+                    : "line.3.horizontal.decrease.circle.fill")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
             Button {
                 store.refresh()
             } label: {
@@ -100,6 +116,18 @@ struct PanelView: View {
                         }
                         Divider()
                             .padding(.leading, 12)
+                    }
+                    if store.hasMore {
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .controlSize(.small)
+                            Spacer()
+                        }
+                        .padding(.vertical, 10)
+                        .onAppear {
+                            store.loadMore()
+                        }
                     }
                 }
             }

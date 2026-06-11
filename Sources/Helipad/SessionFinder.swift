@@ -15,13 +15,59 @@ struct SessionFinder {
 
     static func open(for pr: PullRequest) {
         let marker = "\(pr.repository.nameWithOwner)/pull/\(pr.number)"
-        if let agent = activeAgents().first(where: { transcriptMentions(agent: $0, marker: marker) }) {
-            openInTerminal(directory: agent.cwd, command: "claude attach \(agent.shortID)")
-        } else {
-            let repoDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent("GitHub/\(pr.repoShortName)").path
-            openInTerminal(directory: repoDir, command: "claude --from-pr \(pr.url)")
+        let agents = activeAgents()
+        let repoDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("GitHub/\(pr.repoShortName)").path
+
+        // 1. Background-job registry: each job's state.json lists the PRs it
+        //    worked on — the most direct PR-to-session link.
+        if let jobID = jobID(linkedTo: marker) {
+            if let agent = agents.first(where: { $0.shortID == jobID }) {
+                openInTerminal(directory: agent.cwd, command: "claude attach \(agent.shortID)")
+            } else {
+                // finished job — resume by short ID works from any directory
+                openInTerminal(directory: repoDir, command: "claude --resume \(jobID)")
+            }
+            return
         }
+
+        // 2. A running agent whose transcript mentions the PR.
+        if let agent = agents.first(where: { transcriptMentions(agent: $0, marker: marker) }) {
+            openInTerminal(directory: agent.cwd, command: "claude attach \(agent.shortID)")
+            return
+        }
+
+        // 3. Claude Code's own PR-to-session tracking (global, picker fallback).
+        openInTerminal(directory: repoDir, command: "claude --from-pr \(pr.url)")
+    }
+
+    /// Searches ~/.claude/jobs/<id>/state.json files for a PR link; returns
+    /// the most recently active matching job's short ID.
+    static func jobID(linkedTo marker: String) -> String? {
+        let jobsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/jobs")
+        guard let jobs = try? FileManager.default.contentsOfDirectory(atPath: jobsDir.path) else {
+            return nil
+        }
+        var best: (id: String, mtime: Date)?
+        for job in jobs {
+            let statePath = jobsDir.appendingPathComponent("\(job)/state.json").path
+            guard
+                let data = FileManager.default.contents(atPath: statePath),
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let children = json["children"] as? [[String: Any]]
+            else { continue }
+            let mentionsPR = children.contains {
+                ($0["kind"] as? String) == "pr" && (($0["href"] as? String)?.hasSuffix(marker) ?? false)
+            }
+            guard mentionsPR else { continue }
+            let attrs = try? FileManager.default.attributesOfItem(atPath: statePath)
+            let mtime = attrs?[.modificationDate] as? Date ?? .distantPast
+            if best == nil || mtime > best!.mtime {
+                best = (job, mtime)
+            }
+        }
+        return best?.id
     }
 
     static func claudePath() -> String? {

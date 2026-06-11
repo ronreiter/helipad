@@ -44,6 +44,50 @@ struct PullRequest: Identifiable, Decodable {
     var hasConflicts: Bool {
         mergeable == "CONFLICTING"
     }
+
+    enum Status: String, CaseIterable {
+        case approved
+        case changesRequested
+        case conflicts
+        case ciFailed
+        case needsReview
+        case ciPending
+        case ciPassing
+
+        var label: String {
+            switch self {
+            case .approved: return "Approved"
+            case .changesRequested: return "Changes requested"
+            case .conflicts: return "Conflicts"
+            case .ciFailed: return "CI failed"
+            case .needsReview: return "Needs review"
+            case .ciPending: return "CI running"
+            case .ciPassing: return "CI passing"
+            }
+        }
+
+        /// Statuses that mean the PR needs the author's attention.
+        static let needsAttention: Set<Status> = [.approved, .changesRequested, .conflicts, .ciFailed]
+    }
+
+    var statuses: Set<Status> {
+        var result: Set<Status> = []
+        switch reviewDecision {
+        case "APPROVED": result.insert(.approved)
+        case "CHANGES_REQUESTED": result.insert(.changesRequested)
+        default: result.insert(.needsReview)
+        }
+        switch ciState {
+        case "SUCCESS": result.insert(.ciPassing)
+        case "FAILURE", "ERROR": result.insert(.ciFailed)
+        case "PENDING", "EXPECTED": result.insert(.ciPending)
+        default: break
+        }
+        if hasConflicts {
+            result.insert(.conflicts)
+        }
+        return result
+    }
 }
 
 struct SearchResponse: Decodable {
