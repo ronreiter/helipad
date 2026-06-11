@@ -29,7 +29,7 @@ A filter menu (funnel icon) controls which statuses are shown; by default only P
 
 ## Install
 
-Download the signed & notarized build from the [latest release](https://github.com/ronreiter/helipad/releases/latest), unzip, and drag `Helipad.app` to Applications. Every push to `main` publishes a new release automatically.
+Download the DMG from the [latest release](https://github.com/ronreiter/helipad/releases/latest), open it, and drag Helipad into Applications (signed and notarized). Every push to `main` publishes a new release automatically.
 
 ## Build & run from source
 
