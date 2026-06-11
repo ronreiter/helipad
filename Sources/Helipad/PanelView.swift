@@ -312,7 +312,7 @@ struct PRRow: View {
 
     @ViewBuilder
     private var reviewBadge: some View {
-        switch pr.reviewDecision {
+        switch pr.effectiveReviewDecision {
         case "APPROVED":
             badge("Approved", systemImage: "checkmark.seal.fill", color: .green)
         case "CHANGES_REQUESTED":

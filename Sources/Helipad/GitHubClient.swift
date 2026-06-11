@@ -27,6 +27,7 @@ struct GitHubClient {
             number
             isDraft
             reviewDecision
+            reviewRequests(first: 1) { totalCount }
             mergeable
             updatedAt
             repository { nameWithOwner }

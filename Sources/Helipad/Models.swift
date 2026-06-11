@@ -6,6 +6,7 @@ struct PullRequest: Identifiable, Decodable {
     let number: Int
     let isDraft: Bool
     let reviewDecision: String?
+    let reviewRequests: ReviewRequests?
     let mergeable: String?
     let updatedAt: Date
     let repository: Repository
@@ -33,6 +34,10 @@ struct PullRequest: Identifiable, Decodable {
         let state: String
     }
 
+    struct ReviewRequests: Decodable {
+        let totalCount: Int
+    }
+
     var repoShortName: String {
         repository.nameWithOwner.split(separator: "/").last.map(String.init) ?? repository.nameWithOwner
     }
@@ -43,6 +48,16 @@ struct PullRequest: Identifiable, Decodable {
 
     var hasConflicts: Bool {
         mergeable == "CONFLICTING"
+    }
+
+    /// reviewDecision stays CHANGES_REQUESTED after the author re-requests a
+    /// review; a pending review request means the ball is back with the
+    /// reviewer, so treat it as needing review.
+    var effectiveReviewDecision: String? {
+        if reviewDecision == "CHANGES_REQUESTED", (reviewRequests?.totalCount ?? 0) > 0 {
+            return "REVIEW_REQUIRED"
+        }
+        return reviewDecision
     }
 
     enum Status: String, CaseIterable {
@@ -75,7 +90,7 @@ struct PullRequest: Identifiable, Decodable {
 
     var statuses: Set<Status> {
         var result: Set<Status> = []
-        switch reviewDecision {
+        switch effectiveReviewDecision {
         case "APPROVED": result.insert(.approved)
         case "CHANGES_REQUESTED": result.insert(.changesRequested)
         default: result.insert(.needsReview)

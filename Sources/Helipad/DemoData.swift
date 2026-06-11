@@ -60,6 +60,7 @@ enum DemoData {
             number: number,
             isDraft: false,
             reviewDecision: review,
+            reviewRequests: nil,
             mergeable: mergeable,
             updatedAt: Date().addingTimeInterval(-minutesAgo * 60),
             repository: .init(nameWithOwner: repo),

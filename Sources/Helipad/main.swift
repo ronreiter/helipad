@@ -8,7 +8,7 @@ if CommandLine.arguments.contains("--dump") {
         print("total: \(result.total)")
         for pr in result.prs {
             let ci = pr.ciState ?? "NO_CI"
-            let review = pr.reviewDecision ?? "NONE"
+            let review = pr.effectiveReviewDecision ?? "NONE"
             print("\(pr.repoShortName)#\(pr.number) [ci:\(ci)] [review:\(review)]\(pr.hasConflicts ? " [CONFLICTS]" : "") \(pr.title)")
         }
         exit(0)
