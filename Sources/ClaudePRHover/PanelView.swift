@@ -178,13 +178,12 @@ struct PRRow: View {
         let pr = self.pr
         DispatchQueue.global(qos: .userInitiated).async {
             let session = SessionFinder.findSession(for: pr)
+            if let session {
+                SessionFinder.openInTerminal(session)
+            }
             DispatchQueue.main.async {
                 isFindingSession = false
-                if let session {
-                    SessionFinder.openInTerminal(session)
-                } else {
-                    sessionNotFound = true
-                }
+                sessionNotFound = (session == nil)
             }
         }
     }

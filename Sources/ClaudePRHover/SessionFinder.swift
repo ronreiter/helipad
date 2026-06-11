@@ -66,11 +66,44 @@ struct SessionFinder {
             .replacingOccurrences(of: "\"", with: "")
     }
 
+    static func claudePath() -> String? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/.local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/local/bin/claude",
+        ]
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    /// True if the session is currently running as a background agent
+    /// (those can't be resumed directly — they're attached via `claude agents`).
+    static func isActiveBackgroundAgent(_ session: Session) -> Bool {
+        guard let claude = claudePath() else { return false }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: claude)
+        process.arguments = ["agents", "--json"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else { return false }
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard
+            let json = try? JSONSerialization.jsonObject(with: output),
+            let sessions = json as? [[String: Any]]
+        else { return false }
+        return sessions.contains { $0["sessionId"] as? String == session.id }
+    }
+
     static func openInTerminal(_ session: Session) {
         let dir = FileManager.default.fileExists(atPath: session.cwd)
             ? session.cwd
             : FileManager.default.homeDirectoryForCurrentUser.path
-        let command = "cd '\(dir)' && claude --resume \(session.id)"
+        let claudeCommand = isActiveBackgroundAgent(session)
+            ? "claude agents"
+            : "claude --resume \(session.id)"
+        let command = "cd '\(dir)' && \(claudeCommand)"
         let script = """
         tell application "Terminal"
             activate
