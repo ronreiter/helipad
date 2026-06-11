@@ -17,6 +17,11 @@ final class PRStore: ObservableObject {
 
     private var cursor: String?
     private var loadMoreFailures = 0
+    private var autoFillCount = 0
+    /// Auto-fetch at most this many pages beyond the first per refresh;
+    /// deeper pages load only when the user actually scrolls. Keeps the
+    /// 5-minute refresh at ~3 API calls instead of draining all pages.
+    private static let maxAutoFillPages = 2
     private var timer: Timer?
     static let refreshInterval: TimeInterval = 300
     private static let archivedKey = "archivedPRs"
@@ -115,6 +120,7 @@ final class PRStore: ObservableObject {
                     self.lastUpdated = Date()
                     self.errorMessage = nil
                     self.isLoading = false
+                    self.autoFillCount = 0
                     self.fillIfNeeded()
                 }
             } catch {
@@ -158,9 +164,11 @@ final class PRStore: ObservableObject {
     }
 
     /// Filters can hide most of a page, leaving a tab too short to scroll —
-    /// keep fetching until every tab has enough rows or pages run out.
+    /// top up a couple of pages automatically; the rest loads on scroll.
     private func fillIfNeeded() {
+        guard autoFillCount < Self.maxAutoFillPages else { return }
         if hasMore && min(blockedOnMePRs.count, needsReviewPRs.count, activePRs.count) < 30 {
+            autoFillCount += 1
             loadMore()
         }
     }
