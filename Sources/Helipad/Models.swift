@@ -67,7 +67,7 @@ struct PullRequest: Identifiable, Decodable {
         }
 
         /// Statuses that mean the PR needs the author's attention.
-        static let needsAttention: Set<Status> = [.approved, .changesRequested, .conflicts, .ciFailed]
+        static let needsAttention: Set<Status> = [.approved, .changesRequested]
     }
 
     var statuses: Set<Status> {
