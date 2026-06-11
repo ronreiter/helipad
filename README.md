@@ -13,7 +13,14 @@ PRs are found via GitHub search: open PRs authored by you whose body contains "G
 - Review state (Approved / Needs review / Changes requested)
 - A merge-conflict warning when the PR can't merge cleanly
 
-Click a row to open the PR in your browser. The list refreshes every 60 seconds.
+Each row has four actions:
+
+- **Remove** — hide the PR from the panel (persisted across refreshes; doesn't touch GitHub)
+- **Open Folder** — open `~/GitHub/<repo>` in Finder (disabled if not cloned locally)
+- **Session** — find the local Claude Code session that worked on this PR (by searching `~/.claude/projects` transcripts for the PR URL) and resume it in Terminal via `claude --resume`
+- **Open PR** — open the PR in your browser (clicking the row does the same)
+
+The list refreshes automatically every 5 minutes.
 
 ## Requirements
 
@@ -43,3 +50,11 @@ mkdir -p ~/.local/bin && cp .build/release/ClaudePRHover ~/.local/bin/
 ```
 
 Then add `~/.local/bin/ClaudePRHover` as a Login Item in System Settings → General → Login Items.
+
+## How PRs are detected
+
+The panel queries GitHub for open PRs you authored whose body contains "Generated with Claude Code" — the attribution footer Claude Code adds to every PR it opens. If your Claude Code setup uses a different PR footer, adjust the search query in `Sources/ClaudePRHover/GitHubClient.swift`.
+
+## License
+
+MIT

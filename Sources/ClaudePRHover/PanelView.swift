@@ -79,7 +79,9 @@ struct PanelView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(store.prs) { pr in
-                        PRRow(pr: pr)
+                        PRRow(pr: pr) {
+                            store.dismiss(pr)
+                        }
                         Divider()
                             .padding(.leading, 12)
                     }
@@ -91,7 +93,17 @@ struct PanelView: View {
 
 struct PRRow: View {
     let pr: PullRequest
+    let onRemove: () -> Void
     @State private var isHovering = false
+    @State private var isFindingSession = false
+    @State private var sessionNotFound = false
+
+    private var localFolder: URL? {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("GitHub")
+            .appendingPathComponent(pr.repoShortName)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -114,6 +126,35 @@ struct PRRow: View {
                     badge("Conflicts", systemImage: "exclamationmark.triangle.fill", color: .orange)
                 }
             }
+            HStack(spacing: 6) {
+                Spacer()
+                Button("Remove") {
+                    onRemove()
+                }
+                Button("Open Folder") {
+                    if let folder = localFolder {
+                        NSWorkspace.shared.open(folder)
+                    }
+                }
+                .disabled(localFolder == nil)
+                Button {
+                    openSession()
+                } label: {
+                    if isFindingSession {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Text(sessionNotFound ? "No Session" : "Session")
+                    }
+                }
+                .disabled(isFindingSession || sessionNotFound)
+                Button("Open PR") {
+                    openPR()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .font(.caption)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -122,8 +163,28 @@ struct PRRow: View {
         .background(isHovering ? Color.primary.opacity(0.06) : Color.clear)
         .onHover { isHovering = $0 }
         .onTapGesture {
-            if let url = URL(string: pr.url) {
-                NSWorkspace.shared.open(url)
+            openPR()
+        }
+    }
+
+    private func openPR() {
+        if let url = URL(string: pr.url) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func openSession() {
+        isFindingSession = true
+        let pr = self.pr
+        DispatchQueue.global(qos: .userInitiated).async {
+            let session = SessionFinder.findSession(for: pr)
+            DispatchQueue.main.async {
+                isFindingSession = false
+                if let session {
+                    SessionFinder.openInTerminal(session)
+                } else {
+                    sessionNotFound = true
+                }
             }
         }
     }

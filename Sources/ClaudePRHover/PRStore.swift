@@ -10,7 +10,19 @@ final class PRStore: ObservableObject {
     @Published var isLoading = false
 
     private var timer: Timer?
-    static let refreshInterval: TimeInterval = 60
+    private var dismissedURLs: Set<String>
+    static let refreshInterval: TimeInterval = 300
+    private static let dismissedKey = "dismissedPRs"
+
+    init() {
+        dismissedURLs = Set(UserDefaults.standard.stringArray(forKey: Self.dismissedKey) ?? [])
+    }
+
+    func dismiss(_ pr: PullRequest) {
+        dismissedURLs.insert(pr.url)
+        UserDefaults.standard.set(Array(dismissedURLs), forKey: Self.dismissedKey)
+        prs.removeAll { $0.url == pr.url }
+    }
 
     func start() {
         refresh()
@@ -28,7 +40,7 @@ final class PRStore: ObservableObject {
             do {
                 let result = try GitHubClient.fetchPullRequests()
                 await MainActor.run {
-                    self.prs = result.prs
+                    self.prs = result.prs.filter { !self.dismissedURLs.contains($0.url) }
                     self.totalCount = result.total
                     self.lastUpdated = Date()
                     self.errorMessage = nil
