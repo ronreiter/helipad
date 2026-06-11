@@ -27,13 +27,17 @@ echo "== sign =="
 codesign --force --options runtime --timestamp --sign "$SIGN_ID" dist/Helipad.app
 codesign --verify --strict dist/Helipad.app
 
+echo "== dmg =="
+rm -rf dist/dmg-root && mkdir dist/dmg-root
+cp -R dist/Helipad.app dist/dmg-root/
+ln -s /Applications dist/dmg-root/Applications
+hdiutil create -volname "Helipad" -srcfolder dist/dmg-root -ov -format UDZO "dist/Helipad-$VERSION.dmg"
+codesign --force --timestamp --sign "$SIGN_ID" "dist/Helipad-$VERSION.dmg"
+
 echo "== notarize =="
-ditto -c -k --keepParent dist/Helipad.app dist/Helipad-notarize.zip
-xcrun notarytool submit dist/Helipad-notarize.zip \
+xcrun notarytool submit "dist/Helipad-$VERSION.dmg" \
   --key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" \
   --wait
-xcrun stapler staple dist/Helipad.app
+xcrun stapler staple "dist/Helipad-$VERSION.dmg"
 
-echo "== package =="
-ditto -c -k --keepParent dist/Helipad.app "dist/Helipad-$VERSION.zip"
-echo "dist/Helipad-$VERSION.zip"
+echo "dist/Helipad-$VERSION.dmg"
