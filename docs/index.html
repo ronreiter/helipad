@@ -26,7 +26,7 @@
     line-height: 1.6;
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-  header { padding: 160px 0 48px; text-align: center; }
+  header { padding: 200px 0 48px; text-align: center; }
   .sparkle { font-size: 56px; }
   h1 {
     font-size: 48px;
@@ -101,8 +101,11 @@
   <h1>Helipad</h1>
   <p class="tagline">A floating macOS panel with every open PR Claude Code created for you — CI state, review state, and a one-click jump back into the Claude session that wrote it.</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest">Download for macOS</a>
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg">⬇&nbsp; Download for macOS</a>
     <a class="btn btn-secondary" href="https://github.com/ronreiter/helipad">View on GitHub</a>
+  </div>
+  <div style="margin-top: 20px;">
+    <iframe src="https://ghbtns.com/github-btn.html?user=ronreiter&repo=helipad&type=star&count=true&size=large" frameborder="0" scrolling="0" width="170" height="30" title="Star ronreiter/helipad on GitHub"></iframe>
   </div>
 </header>
 
@@ -156,10 +159,12 @@
 
 <section class="wrap" id="install">
   <h2>Install</h2>
+  <p style="margin-bottom: 20px;">
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg">⬇&nbsp; Download Helipad.dmg (latest)</a>
+  </p>
   <p style="color: var(--muted); margin-bottom: 16px;">
-    Download the DMG from the
-    <a href="https://github.com/ronreiter/helipad/releases/latest" style="color: var(--accent);">latest release</a>,
-    open it, and drag Helipad into Applications. Signed and notarized — no Gatekeeper warnings. Or build from source:
+    Open the DMG and drag Helipad into Applications. Signed and notarized — no Gatekeeper warnings.
+    Requires macOS 13+ and an authenticated <a href="https://cli.github.com" style="color: var(--accent);">gh CLI</a>. Or build from source:
   </p>
   <pre><span class="c"># Requirements: macOS 13+, gh CLI authenticated (gh auth login)</span>
 git clone https://github.com/ronreiter/helipad.git

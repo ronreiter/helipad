@@ -47,6 +47,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$VERSION" "dist/Helipad-$VERSION.dmg" \
+          # fixed-name copy so /releases/latest/download/Helipad.dmg always works
+          cp "dist/Helipad-$VERSION.dmg" dist/Helipad.dmg
+          gh release create "v$VERSION" "dist/Helipad-$VERSION.dmg" dist/Helipad.dmg \
             --title "Helipad $VERSION" \
             --notes "Signed and notarized macOS build of commit ${GITHUB_SHA::7}. Open the DMG and drag Helipad to Applications."
