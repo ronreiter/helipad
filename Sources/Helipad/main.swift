@@ -22,7 +22,7 @@ final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 430, height: 560),
-            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .fullSizeContentView],
+            styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -33,6 +33,8 @@ final class FloatingPanel: NSPanel {
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
+        contentMinSize = NSSize(width: 430, height: 560)
+        setFrameAutosaveName("HelipadPanel")
         self.contentView = contentView
     }
 

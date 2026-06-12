@@ -23,7 +23,7 @@ struct PanelView: View {
             Divider()
             content
         }
-        .frame(width: 430, height: 560)
+        .frame(minWidth: 430, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
         .background(.ultraThinMaterial)
     }
 
