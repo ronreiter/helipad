@@ -22,6 +22,10 @@ Each row has four actions:
 
 A filter menu (funnel icon) controls which statuses are shown; by default only PRs needing your attention appear (approved, changes requested, CI failed, conflicts). The first page loads immediately and more PRs load as you scroll. The list refreshes automatically every 5 minutes.
 
+## Notifications
+
+When a PR becomes blocked on you (approved and ready to merge, or sent back with changes requested), Helipad posts a macOS notification — click it to open the PR. Each PR notifies only once: refreshes, scrolling, and app restarts never re-fire, and the first launch adopts your existing backlog silently instead of blasting a notification per PR. If a PR leaves the blocked state (e.g. you re-request review) and later becomes blocked again, it notifies again. Notifications require the bundled app from the DMG; bare `swift build` binaries have no bundle identifier, so macOS can't deliver notifications for them.
+
 ## Requirements
 
 - macOS 13+

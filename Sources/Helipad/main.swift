@@ -65,6 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
 
+        if !store.isDemo {
+            Notifier.shared.start()
+        }
         store.start()
         panel.orderFrontRegardless()
     }
