@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
-            systemSymbolName: "sparkles.rectangle.stack",
+            systemSymbolName: "h.circle.fill",
             accessibilityDescription: "Helipad"
         )
 
