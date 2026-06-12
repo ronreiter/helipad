@@ -23,7 +23,7 @@ struct PanelView: View {
             Divider()
             content
         }
-        .frame(minWidth: 430, maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
+        .frame(minWidth: 430, maxWidth: .infinity, minHeight: 320, maxHeight: .infinity)
         .background(.ultraThinMaterial)
     }
 
@@ -182,18 +182,40 @@ struct PanelView: View {
                             .padding(.leading, 12)
                     }
                     if store.hasMore {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .controlSize(.small)
-                            Spacer()
-                        }
-                        .padding(.vertical, 10)
-                        // re-create the row per page so onAppear fires again
-                        // while it stays visible (e.g. filters hide most rows)
-                        .id(store.prs.count)
-                        .onAppear {
-                            store.loadMore()
+                        // Auto-load only when the list is long enough that
+                        // reaching this row means the user scrolled; on short
+                        // lists the row is always visible and would otherwise
+                        // drain every page in a constant-spinner loop.
+                        if visiblePRs.count >= 15 {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .controlSize(.small)
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
+                            // new identity per page so onAppear re-fires
+                            .id(store.prs.count)
+                            .onAppear {
+                                store.loadMore()
+                            }
+                        } else {
+                            HStack {
+                                Spacer()
+                                if store.isLoadingMore {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Button("Load more…") {
+                                        store.loadMore()
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 10)
                         }
                     }
                 }

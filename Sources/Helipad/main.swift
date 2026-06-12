@@ -33,7 +33,7 @@ final class FloatingPanel: NSPanel {
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        contentMinSize = NSSize(width: 430, height: 560)
+        contentMinSize = NSSize(width: 430, height: 320)
         setFrameAutosaveName("HelipadPanel")
         self.contentView = contentView
     }
