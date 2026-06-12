@@ -26,7 +26,23 @@
     line-height: 1.6;
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-  header.wrap { padding: 120px 24px 48px; text-align: center; }
+  .hero {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 96px 24px 72px;
+    display: flex;
+    align-items: center;
+    gap: 56px;
+  }
+  .hero-text { flex: 1; }
+  .hero-shot { flex: 0 0 380px; }
+  .hero-shot img { width: 100%; }
+  @media (max-width: 880px) {
+    .hero { flex-direction: column; text-align: center; padding-top: 64px; }
+    .hero-shot { flex: none; max-width: 380px; }
+    .tagline { margin-left: auto; margin-right: auto; }
+    .cta { justify-content: center; }
+  }
   .sparkle { font-size: 56px; }
   h1 {
     font-size: 48px;
@@ -37,8 +53,8 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
-  .tagline { font-size: 20px; color: var(--muted); max-width: 640px; margin: 0 auto; }
-  .cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .tagline { font-size: 20px; color: var(--muted); max-width: 640px; }
+  .cta { margin-top: 32px; display: flex; gap: 12px; flex-wrap: wrap; }
   .btn {
     display: inline-block;
     padding: 12px 24px;
@@ -72,11 +88,6 @@
     border-radius: 999px;
     padding: 1px 10px;
     font-size: 13px;
-  }
-  .shot { text-align: center; padding: 24px 0 80px; }
-  .shot img {
-    max-width: 440px;
-    width: 100%;
   }
   section.wrap { padding: 80px 24px; border-top: 1px solid var(--border); }
   h2 { font-size: 28px; margin-bottom: 24px; letter-spacing: -0.01em; }
@@ -118,8 +129,9 @@
 </head>
 <body>
 
-<header class="wrap">
-  <img src="icon.png" alt="Helipad icon" width="120" height="120" style="border-radius: 27px;">
+<header class="hero">
+<div class="hero-text">
+  <img src="icon.png" alt="Helipad icon" width="96" height="96" style="border-radius: 22px;">
   <h1>Helipad</h1>
   <p class="tagline">When Claude Code agents are opening pull requests for you all day — across many repos, from many sessions —
     the bottleneck becomes <em>you</em>: the PRs that are approved and waiting for your merge, or bounced back
@@ -136,11 +148,11 @@
       <span class="star-count" id="star-count" style="display:none;"></span>
     </a>
   </div>
-</header>
-
-<div class="shot wrap">
+</div>
+<div class="hero-shot">
   <img src="screenshot.png" alt="Helipad floating panel showing open PRs with CI and review badges">
 </div>
+</header>
 
 <section class="wrap">
   <h2>Features</h2>
