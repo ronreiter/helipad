@@ -13,16 +13,48 @@ struct PanelView: View {
 
     @State private var tab: Tab = .blockedOnMe
     @State private var showAbout = false
+    @State private var searchText = ""
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            searchBar
             tabPicker
             Divider()
             content
         }
-        .frame(width: 430, height: 520)
+        .frame(width: 430, height: 560)
         .background(.ultraThinMaterial)
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+            TextField("Search PRs", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .onChange(of: searchText) { text in
+                    if !text.isEmpty {
+                        tab = .all
+                    }
+                }
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.07)))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private var tabPicker: some View {
@@ -42,7 +74,7 @@ struct PanelView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: "airplane.arrival")
+            Image(systemName: "h.circle.fill")
                 .foregroundStyle(.orange)
             Text("Helipad")
                 .font(.headline)
@@ -90,7 +122,7 @@ struct PanelView: View {
             .buttonStyle(.borderless)
             .popover(isPresented: $showAbout) {
                 VStack(spacing: 10) {
-                    Image(systemName: "airplane.arrival")
+                    Image(systemName: "h.circle.fill")
                         .font(.largeTitle)
                         .foregroundStyle(.orange)
                     Text("Helipad")
@@ -170,12 +202,24 @@ struct PanelView: View {
     }
 
     private var visiblePRs: [PullRequest] {
+        if !searchText.isEmpty {
+            // search spans all non-archived PRs, ignoring status filters
+            return store.prs.filter {
+                !store.archivedURLs.contains($0.url) && matchesSearch($0)
+            }
+        }
         switch tab {
         case .blockedOnMe: return store.blockedOnMePRs
         case .needsReview: return store.needsReviewPRs
         case .archived: return store.archivedPRs
         case .all: return store.activePRs
         }
+    }
+
+    private func matchesSearch(_ pr: PullRequest) -> Bool {
+        pr.title.localizedCaseInsensitiveContains(searchText)
+            || pr.repository.nameWithOwner.localizedCaseInsensitiveContains(searchText)
+            || String(pr.number).contains(searchText)
     }
 
     private var emptyMessage: String {

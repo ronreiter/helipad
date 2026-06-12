@@ -21,7 +21,7 @@ if CommandLine.arguments.contains("--dump") {
 final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 430, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 430, height: 560),
             styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
