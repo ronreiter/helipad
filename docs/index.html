@@ -50,6 +50,29 @@
   .btn-primary { background: var(--accent); color: #1a1208; }
   .btn-secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
   .btn:hover { filter: brightness(1.1); }
+  .btn svg { vertical-align: -2px; margin-right: 6px; }
+  .star-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 999px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .star-btn:hover { border-color: var(--accent); }
+  .star-btn svg { color: #f0c27b; }
+  .star-count {
+    background: rgba(240,194,123,.12);
+    color: #f0c27b;
+    border-radius: 999px;
+    padding: 1px 10px;
+    font-size: 13px;
+  }
   .shot { text-align: center; padding: 24px 0 80px; }
   .shot img {
     max-width: 440px;
@@ -98,28 +121,26 @@
 <header class="wrap">
   <img src="icon.png" alt="Helipad icon" width="120" height="120" style="border-radius: 27px;">
   <h1>Helipad</h1>
-  <p class="tagline">A floating macOS panel that shows which of your Claude Code PRs are blocked on you — approved and ready to merge, or sent back with changes requested — with a notification the moment a new one is.</p>
+  <p class="tagline">When Claude Code agents are opening pull requests for you all day — across many repos, from many sessions —
+    the bottleneck becomes <em>you</em>: the PRs that are approved and waiting for your merge, or bounced back
+    with changes requested. Helipad keeps exactly that list — the PRs blocked on <em>you</em> — hovering on top
+    of everything, and notifies you the moment a new one joins it.</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg">⬇&nbsp; Download for macOS</a>
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.03 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.56-1.702z"/></svg> Download for macOS</a>
     <a class="btn btn-secondary" href="https://github.com/ronreiter/helipad">View on GitHub</a>
   </div>
   <div style="margin-top: 20px;">
-    <iframe src="https://ghbtns.com/github-btn.html?user=ronreiter&repo=helipad&type=star&count=true&size=large" frameborder="0" scrolling="0" width="170" height="30" title="Star ronreiter/helipad on GitHub"></iframe>
+    <a class="star-btn" href="https://github.com/ronreiter/helipad">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.243 7.34l-6.38 .925l-.113 .023a1 1 0 0 0 -.44 1.684l4.622 4.499l-1.09 6.355l-.013 .11a1 1 0 0 0 1.464 .944l5.706 -3l5.693 3l.1 .046a1 1 0 0 0 1.352 -1.1l-1.091 -6.355l4.624 -4.5l.078 -.085a1 1 0 0 0 -.633 -1.62l-6.38 -.926l-2.852 -5.78a1 1 0 0 0 -1.794 0l-2.853 5.78z"/></svg>
+      Star on GitHub
+      <span class="star-count" id="star-count" style="display:none;"></span>
+    </a>
   </div>
 </header>
 
 <div class="shot wrap">
   <img src="screenshot.png" alt="Helipad floating panel showing open PRs with CI and review badges">
 </div>
-
-<section class="wrap">
-  <p style="color: var(--text); font-size: 24px; line-height: 1.55;">
-    When Claude Code agents are opening pull requests for you all day — across many repos, from many sessions —
-    the bottleneck becomes <em>you</em>: the PRs that are approved and waiting for your merge, or bounced back
-    with changes requested. Helipad keeps exactly that list — the PRs blocked on <em>you</em> — hovering on top
-    of everything, and notifies you the moment a new one joins it.
-  </p>
-</section>
 
 <section class="wrap">
   <h2>Features</h2>
@@ -171,7 +192,7 @@
 <section class="wrap" id="install">
   <h2>Install</h2>
   <p style="margin-bottom: 20px;">
-    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg">⬇&nbsp; Download Helipad.dmg (latest)</a>
+    <a class="btn btn-primary" href="https://github.com/ronreiter/helipad/releases/latest/download/Helipad.dmg"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.03 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.56-1.702z"/></svg> Download Helipad.dmg (latest)</a>
   </p>
   <p style="color: var(--muted); margin-bottom: 16px;">
     Open the DMG and drag Helipad into Applications. Signed and notarized — no Gatekeeper warnings.
@@ -192,6 +213,19 @@ swift build -c release
   MIT licensed · Built with <a href="https://claude.com/claude-code">Claude Code</a> ·
   <a href="https://github.com/ronreiter/helipad">github.com/ronreiter/helipad</a>
 </footer>
+
+<script>
+fetch('https://api.github.com/repos/ronreiter/helipad')
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    if (typeof d.stargazers_count === 'number') {
+      var el = document.getElementById('star-count');
+      el.textContent = d.stargazers_count.toLocaleString();
+      el.style.display = '';
+    }
+  })
+  .catch(function () {});
+</script>
 
 </body>
 </html>
