@@ -1,6 +1,6 @@
 # Helipad
 
-A floating macOS panel that shows all your open, non-draft pull requests generated with Claude Code — so you always see what's ready for review or merge.
+A floating macOS panel that shows all your open pull requests which are blocked on you — so you always see what's ready for review or merge.
 
 ![Panel](docs/screenshot.png)
 
