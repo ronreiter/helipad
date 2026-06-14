@@ -14,7 +14,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
             && lhs.ciState == rhs.ciState
     }
 
-    let title: String
+    var title: String
     let url: String
     let number: Int
     let isDraft: Bool

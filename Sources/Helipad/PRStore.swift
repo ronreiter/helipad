@@ -216,6 +216,20 @@ final class PRStore: ObservableObject {
         UserDefaults.standard.set(nicknames, forKey: Self.nicknamesKey)
     }
 
+    func renameTitle(_ newTitle: String, for pr: PullRequest) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != pr.title else { return }
+        if let index = prs.firstIndex(where: { $0.url == pr.url }) {
+            prs[index].title = trimmed
+            statusCache.removeValue(forKey: pr.url)
+            recomputeFilteredLists()
+            persistCache()
+        }
+        Task.detached(priority: .userInitiated) {
+            try? GitHubClient.updateTitle(trimmed, number: pr.number, repo: pr.repository.nameWithOwner)
+        }
+    }
+
     func archive(_ pr: PullRequest) {
         archivedURLs.insert(pr.url)
         recomputeFilteredLists()

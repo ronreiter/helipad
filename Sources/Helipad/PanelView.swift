@@ -431,6 +431,8 @@ struct PRRow: View, Equatable {
     @State private var isFindingSession = false
     @State private var showNicknameEditor = false
     @State private var nicknameInput = ""
+    @State private var showTitleEditor = false
+    @State private var titleInput = ""
 
     static func == (lhs: PRRow, rhs: PRRow) -> Bool {
         lhs.pr == rhs.pr
@@ -454,18 +456,15 @@ struct PRRow: View, Equatable {
                 .font(.callout)
                 .lineLimit(2)
                 .onTapGesture(count: 2) {
-                nicknameInput = nickname ?? ""
-                showNicknameEditor = true
-            }
-            .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
-                NicknameEditorView(text: $nicknameInput) {
-                    store.setNickname(nicknameInput, for: pr)
-                    showNicknameEditor = false
-                } onClear: {
-                    store.setNickname("", for: pr)
-                    showNicknameEditor = false
+                    titleInput = pr.title
+                    showTitleEditor = true
                 }
-            }
+                .popover(isPresented: $showTitleEditor, arrowEdge: .bottom) {
+                    TitleEditorView(text: $titleInput) {
+                        store.renameTitle(titleInput, for: pr)
+                        showTitleEditor = false
+                    }
+                }
             HStack(spacing: 6) {
                 ciBadge
                 reviewBadge
@@ -480,6 +479,15 @@ struct PRRow: View, Equatable {
                     showNicknameEditor = true
                 } label: {
                     Label("Alias", systemImage: nickname != nil ? "tag.fill" : "tag")
+                }
+                .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
+                    NicknameEditorView(text: $nicknameInput) {
+                        store.setNickname(nicknameInput, for: pr)
+                        showNicknameEditor = false
+                    } onClear: {
+                        store.setNickname("", for: pr)
+                        showNicknameEditor = false
+                    }
                 }
                 Button {
                     store.toggleArchived(pr)
@@ -573,6 +581,33 @@ struct PRRow: View, Equatable {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Capsule().fill(color.opacity(0.12)))
+    }
+}
+
+struct TitleEditorView: View {
+    @Binding var text: String
+    let onSave: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Rename PR")
+                .font(.headline)
+            TextField("PR title", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 280)
+                .focused($focused)
+                .onSubmit { onSave() }
+            HStack {
+                Spacer()
+                Button("Rename") { onSave() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .onAppear { focused = true }
     }
 }
 
