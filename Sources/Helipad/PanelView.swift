@@ -476,7 +476,7 @@ struct PRRow: View, Equatable {
                     nicknameInput = nickname ?? ""
                     showNicknameEditor = true
                 } label: {
-                    Label("Note", systemImage: nickname != nil ? "note.text" : "note.text.badge.plus")
+                    Label("Alias", systemImage: nickname != nil ? "tag.fill" : "tag")
                 }
                 .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
                     NicknameEditorView(text: $nicknameInput) {
@@ -590,9 +590,9 @@ struct NicknameEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Note")
+            Text("Alias")
                 .font(.headline)
-            TextField("Add a note…", text: $text)
+            TextField("Add an alias…", text: $text)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 220)
                 .focused($focused)
