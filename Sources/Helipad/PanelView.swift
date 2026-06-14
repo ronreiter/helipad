@@ -450,18 +450,33 @@ struct PRRow: View, Equatable {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            if let nickname {
-                Text(nickname)
-                    .font(.callout.bold())
-                    .lineLimit(2)
-                Text(pr.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            } else {
-                Text(pr.title)
-                    .font(.callout)
-                    .lineLimit(2)
+            Group {
+                if let nickname {
+                    Text(nickname)
+                        .font(.callout.bold())
+                        .lineLimit(2)
+                    Text(pr.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else {
+                    Text(pr.title)
+                        .font(.callout)
+                        .lineLimit(2)
+                }
+            }
+            .onTapGesture(count: 2) {
+                nicknameInput = nickname ?? ""
+                showNicknameEditor = true
+            }
+            .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
+                NicknameEditorView(text: $nicknameInput) {
+                    store.setNickname(nicknameInput, for: pr)
+                    showNicknameEditor = false
+                } onClear: {
+                    store.setNickname("", for: pr)
+                    showNicknameEditor = false
+                }
             }
             HStack(spacing: 6) {
                 ciBadge
@@ -477,15 +492,6 @@ struct PRRow: View, Equatable {
                     showNicknameEditor = true
                 } label: {
                     Label("Alias", systemImage: nickname != nil ? "tag.fill" : "tag")
-                }
-                .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
-                    NicknameEditorView(text: $nicknameInput) {
-                        store.setNickname(nicknameInput, for: pr)
-                        showNicknameEditor = false
-                    } onClear: {
-                        store.setNickname("", for: pr)
-                        showNicknameEditor = false
-                    }
                 }
                 Button {
                     store.toggleArchived(pr)
