@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Carbon.HIToolbox
 
 // --dump: fetch once, print to stdout, exit (for testing without the GUI)
 if CommandLine.arguments.contains("--dump") {
@@ -46,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: FloatingPanel!
     private var statusItem: NSStatusItem!
     private let store = PRStore()
+    private var hotKeyRef: EventHotKeyRef?
+    private var eventHandlerRef: EventHandlerRef?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let hostingView = NSHostingView(rootView: PanelView(store: store))
@@ -65,11 +68,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
 
+        registerGlobalHotkey()
+
         if !store.isDemo {
             Notifier.shared.start()
         }
         store.start()
         panel.orderFrontRegardless()
+    }
+
+    private func registerGlobalHotkey() {
+        var spec = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, userData -> OSStatus in
+                guard let event, let userData else { return OSStatus(eventNotHandledErr) }
+                var hotkeyID = EventHotKeyID()
+                GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotkeyID
+                )
+                guard hotkeyID.id == 1 else { return OSStatus(eventNotHandledErr) }
+                let delegate = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { delegate.togglePanel() }
+                return noErr
+            },
+            1, &spec, selfPtr, &eventHandlerRef
+        )
+        let hotkeyID = EventHotKeyID(signature: 0x484C_5044 /* HLPD */, id: 1)
+        RegisterEventHotKey(
+            UInt32(kVK_ANSI_P),
+            UInt32(cmdKey),
+            hotkeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
     }
 
     private func positionPanelTopRight() {
@@ -82,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrameOrigin(origin)
     }
 
-    @objc private func togglePanel() {
+    @objc func togglePanel() {
         if panel.isVisible {
             panel.orderOut(nil)
         } else {
