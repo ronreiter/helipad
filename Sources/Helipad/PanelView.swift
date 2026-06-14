@@ -450,22 +450,10 @@ struct PRRow: View, Equatable {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            Group {
-                if let nickname {
-                    Text(nickname)
-                        .font(.callout.bold())
-                        .lineLimit(2)
-                    Text(pr.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text(pr.title)
-                        .font(.callout)
-                        .lineLimit(2)
-                }
-            }
-            .onTapGesture(count: 2) {
+            Text(nickname ?? pr.title)
+                .font(.callout)
+                .lineLimit(2)
+                .onTapGesture(count: 2) {
                 nicknameInput = nickname ?? ""
                 showNicknameEditor = true
             }
