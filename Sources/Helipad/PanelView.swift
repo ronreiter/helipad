@@ -298,6 +298,8 @@ struct PanelView: View {
                             pr: pr,
                             isArchived: tab == .archived,
                             localFolder: store.localFolder(for: pr),
+                            nickname: store.nickname(for: pr),
+                            originalTitle: store.originalTitle(for: pr),
                             store: store
                         )
                         .equatable()
@@ -368,6 +370,7 @@ struct PanelView: View {
         pr.title.localizedCaseInsensitiveContains(searchText)
             || pr.repository.nameWithOwner.localizedCaseInsensitiveContains(searchText)
             || String(pr.number).contains(searchText)
+            || store.nickname(for: pr)?.localizedCaseInsensitiveContains(searchText) == true
     }
 
     private func shortRepoName(_ nameWithOwner: String) -> String {
@@ -419,15 +422,26 @@ struct PRRow: View, Equatable {
     /// Resolved (and cached) by PRStore so the row body doesn't stat the
     /// filesystem on every render.
     let localFolder: URL?
+    /// Passed from PanelView so nickname changes trigger a row rebuild via ==.
+    let nickname: String?
+    let originalTitle: String?
     /// Unowned for SwiftUI: store is reference-typed and lives for the app
     /// lifetime — not part of the Equatable comparison so `.equatable()` can
     /// short-circuit row rebuilds.
     let store: PRStore
     @State private var isHovering = false
     @State private var isFindingSession = false
+    @State private var showNicknameEditor = false
+    @State private var nicknameInput = ""
+    @State private var showTitleEditor = false
+    @State private var titleInput = ""
 
     static func == (lhs: PRRow, rhs: PRRow) -> Bool {
-        lhs.pr == rhs.pr && lhs.isArchived == rhs.isArchived && lhs.localFolder == rhs.localFolder
+        lhs.pr == rhs.pr
+            && lhs.isArchived == rhs.isArchived
+            && lhs.localFolder == rhs.localFolder
+            && lhs.nickname == rhs.nickname
+            && lhs.originalTitle == rhs.originalTitle
     }
 
     var body: some View {
@@ -441,9 +455,30 @@ struct PRRow: View, Equatable {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            Text(pr.title)
-                .font(.callout)
-                .lineLimit(2)
+            Group {
+                if let nickname {
+                    Text(nickname)
+                        .font(.callout.bold())
+                        .lineLimit(2)
+                }
+                Text(pr.title)
+                    .font(nickname != nil ? .caption : .callout)
+                    .foregroundStyle(nickname != nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                    .lineLimit(nickname != nil ? 1 : 2)
+                    .onTapGesture(count: 2) {
+                        titleInput = pr.title
+                        showTitleEditor = true
+                    }
+                    .popover(isPresented: $showTitleEditor, arrowEdge: .bottom) {
+                        TitleEditorView(text: $titleInput, hasOriginal: originalTitle != nil) {
+                            store.renameTitle(titleInput, for: pr)
+                            showTitleEditor = false
+                        } onClear: {
+                            store.clearTitleRename(for: pr)
+                            showTitleEditor = false
+                        }
+                    }
+            }
             HStack(spacing: 6) {
                 ciBadge
                 reviewBadge
@@ -453,6 +488,21 @@ struct PRRow: View, Equatable {
             }
             HStack(spacing: 6) {
                 Spacer()
+                Button {
+                    nicknameInput = nickname ?? ""
+                    showNicknameEditor = true
+                } label: {
+                    Label("Alias", systemImage: nickname != nil ? "tag.fill" : "tag")
+                }
+                .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
+                    NicknameEditorView(text: $nicknameInput, hasExisting: nickname != nil) {
+                        store.setNickname(nicknameInput, for: pr)
+                        showNicknameEditor = false
+                    } onClear: {
+                        store.setNickname("", for: pr)
+                        showNicknameEditor = false
+                    }
+                }
                 Button {
                     store.toggleArchived(pr)
                 } label: {
@@ -545,5 +595,71 @@ struct PRRow: View, Equatable {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(Capsule().fill(color.opacity(0.12)))
+    }
+}
+
+struct TitleEditorView: View {
+    @Binding var text: String
+    let hasOriginal: Bool
+    let onSave: () -> Void
+    let onClear: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Rename PR")
+                .font(.headline)
+            TextField("PR title", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 280)
+                .focused($focused)
+                .onSubmit { onSave() }
+            HStack {
+                Button("Clear") { onClear() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.red)
+                    .disabled(!hasOriginal)
+                Spacer()
+                Button("Rename") { onSave() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .onAppear { focused = true }
+    }
+}
+
+struct NicknameEditorView: View {
+    @Binding var text: String
+    let hasExisting: Bool
+    let onSave: () -> Void
+    let onClear: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Alias")
+                .font(.headline)
+            TextField("Add an alias…", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+                .focused($focused)
+                .onSubmit { onSave() }
+            HStack {
+                Button("Clear") { onClear() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.red)
+                    .disabled(!hasExisting)
+                Spacer()
+                Button("Save") { onSave() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(14)
+        .onAppear { focused = true }
     }
 }

@@ -45,6 +45,21 @@ struct GitHubClient {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
+    static func updateTitle(_ title: String, number: Int, repo: String) throws {
+        guard let gh = ghPath() else { throw GitHubClientError.ghNotFound }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gh)
+        process.arguments = ["pr", "edit", String(number), "--title", title, "--repo", repo]
+        let stderr = Pipe()
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let msg = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            throw GitHubClientError.commandFailed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+    }
+
     /// Fetches one page, retrying once (GitHub's search API 502s intermittently).
     static func fetchPageWithRetry(cursor: String?) throws -> SearchResponse.Search {
         do {

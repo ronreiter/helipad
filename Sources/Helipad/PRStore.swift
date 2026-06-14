@@ -18,6 +18,11 @@ final class PRStore: ObservableObject {
     /// Repos to show. Empty = all repos.
     @Published var selectedRepos: Set<String>
 
+    /// Per-PR nicknames/notes keyed by PR URL.
+    @Published var nicknames: [String: String] = [:]
+    /// Titles as fetched from GitHub before any local rename, keyed by PR URL.
+    @Published var originalTitles: [String: String] = [:]
+
     private var cursor: String?
     private var loadMoreFailures = 0
     private var autoFillCount = 0
@@ -30,6 +35,8 @@ final class PRStore: ObservableObject {
     private static let archivedKey = "archivedPRs"
     private static let filtersKey = "statusFilters"
     private static let selectedReposKey = "selectedRepos"
+    private static let nicknamesKey = "prNicknames"
+    private static let originalTitlesKey = "originalTitles"
     private static let notifiedKey = "notifiedBlockedPRs"
     private static let cachedPRsKey = "cachedPRs"
     private static let cachedUpdatedKey = "cachedLastUpdated"
@@ -121,6 +128,8 @@ final class PRStore: ObservableObject {
             enabledFilters = PullRequest.Status.needsAttention
         }
         selectedRepos = Set(UserDefaults.standard.stringArray(forKey: Self.selectedReposKey) ?? [])
+        nicknames = (UserDefaults.standard.dictionary(forKey: Self.nicknamesKey) as? [String: String]) ?? [:]
+        originalTitles = (UserDefaults.standard.dictionary(forKey: Self.originalTitlesKey) as? [String: String]) ?? [:]
         hydrateFromCache()
         recomputeFilteredLists()
     }
@@ -193,6 +202,58 @@ final class PRStore: ObservableObject {
             UserDefaults.standard.removeObject(forKey: Self.selectedReposKey)
         } else {
             UserDefaults.standard.set(Array(selectedRepos), forKey: Self.selectedReposKey)
+        }
+    }
+
+    func nickname(for pr: PullRequest) -> String? {
+        nicknames[pr.url]
+    }
+
+    func setNickname(_ text: String, for pr: PullRequest) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            nicknames.removeValue(forKey: pr.url)
+        } else {
+            nicknames[pr.url] = trimmed
+        }
+        guard !isDemo else { return }
+        UserDefaults.standard.set(nicknames, forKey: Self.nicknamesKey)
+    }
+
+    func originalTitle(for pr: PullRequest) -> String? {
+        originalTitles[pr.url]
+    }
+
+    func renameTitle(_ newTitle: String, for pr: PullRequest) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != pr.title else { return }
+        if originalTitles[pr.url] == nil {
+            originalTitles[pr.url] = pr.title
+            UserDefaults.standard.set(originalTitles, forKey: Self.originalTitlesKey)
+        }
+        if let index = prs.firstIndex(where: { $0.url == pr.url }) {
+            prs[index].title = trimmed
+            statusCache.removeValue(forKey: pr.url)
+            recomputeFilteredLists()
+            persistCache()
+        }
+        Task.detached(priority: .userInitiated) {
+            try? GitHubClient.updateTitle(trimmed, number: pr.number, repo: pr.repository.nameWithOwner)
+        }
+    }
+
+    func clearTitleRename(for pr: PullRequest) {
+        guard let original = originalTitles[pr.url] else { return }
+        originalTitles.removeValue(forKey: pr.url)
+        UserDefaults.standard.set(originalTitles, forKey: Self.originalTitlesKey)
+        if let index = prs.firstIndex(where: { $0.url == pr.url }) {
+            prs[index].title = original
+            statusCache.removeValue(forKey: pr.url)
+            recomputeFilteredLists()
+            persistCache()
+        }
+        Task.detached(priority: .userInitiated) {
+            try? GitHubClient.updateTitle(original, number: pr.number, repo: pr.repository.nameWithOwner)
         }
     }
 
