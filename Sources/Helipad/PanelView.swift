@@ -607,7 +607,7 @@ struct TitleEditorView: View {
                 .focused($focused)
                 .onSubmit { onSave() }
             HStack {
-                Button("Revert to original") { onClear() }
+                Button("Clear") { onClear() }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.red)
                     .disabled(!hasOriginal)
