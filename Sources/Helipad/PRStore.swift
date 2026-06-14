@@ -18,6 +18,9 @@ final class PRStore: ObservableObject {
     /// Repos to show. Empty = all repos.
     @Published var selectedRepos: Set<String>
 
+    /// Per-PR nicknames/notes keyed by PR URL.
+    @Published var nicknames: [String: String] = [:]
+
     private var cursor: String?
     private var loadMoreFailures = 0
     private var autoFillCount = 0
@@ -30,6 +33,7 @@ final class PRStore: ObservableObject {
     private static let archivedKey = "archivedPRs"
     private static let filtersKey = "statusFilters"
     private static let selectedReposKey = "selectedRepos"
+    private static let nicknamesKey = "prNicknames"
     private static let notifiedKey = "notifiedBlockedPRs"
     private static let cachedPRsKey = "cachedPRs"
     private static let cachedUpdatedKey = "cachedLastUpdated"
@@ -121,6 +125,7 @@ final class PRStore: ObservableObject {
             enabledFilters = PullRequest.Status.needsAttention
         }
         selectedRepos = Set(UserDefaults.standard.stringArray(forKey: Self.selectedReposKey) ?? [])
+        nicknames = (UserDefaults.standard.dictionary(forKey: Self.nicknamesKey) as? [String: String]) ?? [:]
         hydrateFromCache()
         recomputeFilteredLists()
     }
@@ -194,6 +199,21 @@ final class PRStore: ObservableObject {
         } else {
             UserDefaults.standard.set(Array(selectedRepos), forKey: Self.selectedReposKey)
         }
+    }
+
+    func nickname(for pr: PullRequest) -> String? {
+        nicknames[pr.url]
+    }
+
+    func setNickname(_ text: String, for pr: PullRequest) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            nicknames.removeValue(forKey: pr.url)
+        } else {
+            nicknames[pr.url] = trimmed
+        }
+        guard !isDemo else { return }
+        UserDefaults.standard.set(nicknames, forKey: Self.nicknamesKey)
     }
 
     func archive(_ pr: PullRequest) {
