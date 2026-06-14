@@ -1,6 +1,19 @@
 import Foundation
 
-struct PullRequest: Identifiable, Decodable {
+struct PullRequest: Identifiable, Codable, Equatable {
+    /// Equality is by the fields the UI renders — lets `.equatable()` on
+    /// PRRow skip rebuilds when a refresh returns the same PR unchanged.
+    static func == (lhs: PullRequest, rhs: PullRequest) -> Bool {
+        lhs.url == rhs.url
+            && lhs.title == rhs.title
+            && lhs.isDraft == rhs.isDraft
+            && lhs.reviewDecision == rhs.reviewDecision
+            && (lhs.reviewRequests?.totalCount ?? 0) == (rhs.reviewRequests?.totalCount ?? 0)
+            && lhs.mergeable == rhs.mergeable
+            && lhs.updatedAt == rhs.updatedAt
+            && lhs.ciState == rhs.ciState
+    }
+
     let title: String
     let url: String
     let number: Int
@@ -14,27 +27,27 @@ struct PullRequest: Identifiable, Decodable {
 
     var id: String { url }
 
-    struct Repository: Decodable {
+    struct Repository: Codable {
         let nameWithOwner: String
     }
 
-    struct Commits: Decodable {
+    struct Commits: Codable {
         let nodes: [CommitNode]
     }
 
-    struct CommitNode: Decodable {
+    struct CommitNode: Codable {
         let commit: Commit
     }
 
-    struct Commit: Decodable {
+    struct Commit: Codable {
         let statusCheckRollup: StatusCheckRollup?
     }
 
-    struct StatusCheckRollup: Decodable {
+    struct StatusCheckRollup: Codable {
         let state: String
     }
 
-    struct ReviewRequests: Decodable {
+    struct ReviewRequests: Codable {
         let totalCount: Int
     }
 
@@ -108,20 +121,20 @@ struct PullRequest: Identifiable, Decodable {
     }
 }
 
-struct SearchResponse: Decodable {
+struct SearchResponse: Codable {
     let data: SearchData
 
-    struct SearchData: Decodable {
+    struct SearchData: Codable {
         let search: Search
     }
 
-    struct Search: Decodable {
+    struct Search: Codable {
         let issueCount: Int
         let pageInfo: PageInfo
         let nodes: [PullRequest]
     }
 
-    struct PageInfo: Decodable {
+    struct PageInfo: Codable {
         let hasNextPage: Bool
         let endCursor: String?
     }

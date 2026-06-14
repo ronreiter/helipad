@@ -13,7 +13,9 @@ struct PanelView: View {
 
     @State private var tab: Tab = .blockedOnMe
     @State private var showAbout = false
+    @State private var showShortcuts = false
     @State private var searchText = ""
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,6 +27,79 @@ struct PanelView: View {
         }
         .frame(minWidth: 430, maxWidth: .infinity, minHeight: 320, maxHeight: .infinity)
         .background(.ultraThinMaterial)
+        .background(shortcutSurface)
+    }
+
+    /// Invisible Buttons that exist only to register keyboard shortcuts.
+    /// SwiftUI dispatches keyboardShortcut even on zero-opacity / hit-disabled
+    /// views as long as they're in the view tree.
+    private var shortcutsPopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Keyboard shortcuts")
+                .font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 4) {
+                GridRow {
+                    Text("⌘R").font(.callout.monospaced())
+                    Text("Refresh PRs")
+                }
+                GridRow {
+                    Text("⌘F").font(.callout.monospaced())
+                    Text("Focus search")
+                }
+                GridRow {
+                    Text("Esc").font(.callout.monospaced())
+                    Text("Clear search")
+                }
+                GridRow {
+                    Text("⌘1").font(.callout.monospaced())
+                    Text("Blocked on me")
+                }
+                GridRow {
+                    Text("⌘2").font(.callout.monospaced())
+                    Text("Needs review")
+                }
+                GridRow {
+                    Text("⌘3").font(.callout.monospaced())
+                    Text("Archived")
+                }
+                GridRow {
+                    Text("⌘4").font(.callout.monospaced())
+                    Text("All")
+                }
+                GridRow {
+                    Text("⇧⌘?").font(.callout.monospaced())
+                    Text("Toggle this help")
+                }
+            }
+            .font(.callout)
+        }
+        .padding(16)
+        .frame(minWidth: 240)
+    }
+
+    private var shortcutSurface: some View {
+        ZStack {
+            Button("Refresh") { store.refresh() }
+                .keyboardShortcut("r", modifiers: .command)
+            Button("Focus search") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+            Button("Clear search") {
+                if !searchText.isEmpty { searchText = "" }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+            Button("Blocked on me") { tab = .blockedOnMe }
+                .keyboardShortcut("1", modifiers: .command)
+            Button("Needs review") { tab = .needsReview }
+                .keyboardShortcut("2", modifiers: .command)
+            Button("Archived") { tab = .archived }
+                .keyboardShortcut("3", modifiers: .command)
+            Button("All") { tab = .all }
+                .keyboardShortcut("4", modifiers: .command)
+            Button("Help") { showShortcuts.toggle() }
+                .keyboardShortcut("?", modifiers: [.command, .shift])
+        }
+        .opacity(0)
+        .allowsHitTesting(false)
     }
 
     private var searchBar: some View {
@@ -35,6 +110,7 @@ struct PanelView: View {
             TextField("Search PRs", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.callout)
+                .focused($searchFocused)
                 .onChange(of: searchText) { text in
                     if !text.isEmpty {
                         tab = .all
@@ -59,7 +135,18 @@ struct PanelView: View {
 
     private var tabPicker: some View {
         let more = store.hasMore ? "+" : ""
-        return Picker("", selection: $tab) {
+        // Binding routes through a no-animation transaction so flipping tabs
+        // doesn't trigger the segmented picker's implicit selection animation
+        // (the visible "loading each time" beat).
+        let tabBinding = Binding<Tab>(
+            get: { tab },
+            set: { newValue in
+                var txn = Transaction()
+                txn.disablesAnimations = true
+                withTransaction(txn) { tab = newValue }
+            }
+        )
+        return Picker("", selection: tabBinding) {
             Text("Blocked on me (\(store.blockedOnMePRs.count)\(more))").tag(Tab.blockedOnMe)
             Text("Needs review (\(store.needsReviewPRs.count)\(more))").tag(Tab.needsReview)
             Text("Archived (\(store.archivedPRs.count)\(more))").tag(Tab.archived)
@@ -102,6 +189,32 @@ struct PanelView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
+            Menu {
+                Button("All repos") {
+                    store.showAllRepos()
+                }
+                .disabled(store.selectedRepos.isEmpty)
+                if !store.availableRepos.isEmpty {
+                    Menu("Only…") {
+                        ForEach(store.availableRepos, id: \.self) { repo in
+                            Button(repo) {
+                                store.showOnlyRepo(repo)
+                            }
+                        }
+                    }
+                    Divider()
+                    ForEach(store.availableRepos, id: \.self) { repo in
+                        Toggle(repo, isOn: Binding(
+                            get: { store.selectedRepos.contains(repo) },
+                            set: { _ in store.toggleRepo(repo) }
+                        ))
+                    }
+                }
+            } label: {
+                repoFilterLabel
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
             Button {
                 store.refresh()
             } label: {
@@ -114,6 +227,16 @@ struct PanelView: View {
             }
             .buttonStyle(.borderless)
             .disabled(store.isLoading)
+            Button {
+                showShortcuts.toggle()
+            } label: {
+                Image(systemName: "questionmark.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Keyboard shortcuts (⇧⌘?)")
+            .popover(isPresented: $showShortcuts, arrowEdge: .bottom) {
+                shortcutsPopover
+            }
             Button {
                 showAbout.toggle()
             } label: {
@@ -171,13 +294,13 @@ struct PanelView: View {
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(visiblePRs) { pr in
-                        PRRow(pr: pr, isArchived: tab == .archived) {
-                            if tab == .archived {
-                                store.unarchive(pr)
-                            } else {
-                                store.archive(pr)
-                            }
-                        }
+                        PRRow(
+                            pr: pr,
+                            isArchived: tab == .archived,
+                            localFolder: store.localFolder(for: pr),
+                            store: store
+                        )
+                        .equatable()
                         Divider()
                             .padding(.leading, 12)
                     }
@@ -225,9 +348,12 @@ struct PanelView: View {
 
     private var visiblePRs: [PullRequest] {
         if !searchText.isEmpty {
-            // search spans all non-archived PRs, ignoring status filters
+            // search spans all non-archived PRs, ignoring status filters but
+            // still honoring the repo filter (which is a global toggle).
             return store.prs.filter {
-                !store.archivedURLs.contains($0.url) && matchesSearch($0)
+                !store.archivedURLs.contains($0.url)
+                    && (store.selectedRepos.isEmpty || store.selectedRepos.contains($0.repository.nameWithOwner))
+                    && matchesSearch($0)
             }
         }
         switch tab {
@@ -242,6 +368,27 @@ struct PanelView: View {
         pr.title.localizedCaseInsensitiveContains(searchText)
             || pr.repository.nameWithOwner.localizedCaseInsensitiveContains(searchText)
             || String(pr.number).contains(searchText)
+    }
+
+    private func shortRepoName(_ nameWithOwner: String) -> String {
+        nameWithOwner.split(separator: "/").last.map(String.init) ?? nameWithOwner
+    }
+
+    @ViewBuilder
+    private var repoFilterLabel: some View {
+        if store.selectedRepos.isEmpty {
+            Image(systemName: "folder")
+        } else if store.selectedRepos.count == 1, let repo = store.selectedRepos.first {
+            HStack(spacing: 4) {
+                Image(systemName: "folder.fill")
+                Text(shortRepoName(repo)).font(.caption)
+            }
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "folder.fill")
+                Text("\(store.selectedRepos.count)").font(.caption)
+            }
+        }
     }
 
     private var emptyMessage: String {
@@ -266,18 +413,21 @@ struct PanelView: View {
     }
 }
 
-struct PRRow: View {
+struct PRRow: View, Equatable {
     let pr: PullRequest
     let isArchived: Bool
-    let onArchiveToggle: () -> Void
+    /// Resolved (and cached) by PRStore so the row body doesn't stat the
+    /// filesystem on every render.
+    let localFolder: URL?
+    /// Unowned for SwiftUI: store is reference-typed and lives for the app
+    /// lifetime — not part of the Equatable comparison so `.equatable()` can
+    /// short-circuit row rebuilds.
+    let store: PRStore
     @State private var isHovering = false
     @State private var isFindingSession = false
 
-    private var localFolder: URL? {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("GitHub")
-            .appendingPathComponent(pr.repoShortName)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    static func == (lhs: PRRow, rhs: PRRow) -> Bool {
+        lhs.pr == rhs.pr && lhs.isArchived == rhs.isArchived && lhs.localFolder == rhs.localFolder
     }
 
     var body: some View {
@@ -304,7 +454,7 @@ struct PRRow: View {
             HStack(spacing: 6) {
                 Spacer()
                 Button {
-                    onArchiveToggle()
+                    store.toggleArchived(pr)
                 } label: {
                     Label(isArchived ? "Unarchive" : "Archive",
                           systemImage: isArchived ? "tray.and.arrow.up" : "archivebox")
