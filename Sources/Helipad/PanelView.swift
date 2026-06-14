@@ -481,7 +481,7 @@ struct PRRow: View, Equatable {
                     Label("Alias", systemImage: nickname != nil ? "tag.fill" : "tag")
                 }
                 .popover(isPresented: $showNicknameEditor, arrowEdge: .bottom) {
-                    NicknameEditorView(text: $nicknameInput) {
+                    NicknameEditorView(text: $nicknameInput, hasExisting: nickname != nil) {
                         store.setNickname(nicknameInput, for: pr)
                         showNicknameEditor = false
                     } onClear: {
@@ -613,6 +613,7 @@ struct TitleEditorView: View {
 
 struct NicknameEditorView: View {
     @Binding var text: String
+    let hasExisting: Bool
     let onSave: () -> Void
     let onClear: () -> Void
     @FocusState private var focused: Bool
@@ -627,14 +628,15 @@ struct NicknameEditorView: View {
                 .focused($focused)
                 .onSubmit { onSave() }
             HStack {
-                Button("Clear", role: .destructive) { onClear() }
+                Button("Clear") { onClear() }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.red)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!hasExisting)
                 Spacer()
                 Button("Save") { onSave() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(14)
