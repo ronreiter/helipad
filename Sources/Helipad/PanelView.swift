@@ -299,6 +299,7 @@ struct PanelView: View {
                             isArchived: tab == .archived,
                             localFolder: store.localFolder(for: pr),
                             nickname: store.nickname(for: pr),
+                            originalTitle: store.originalTitle(for: pr),
                             store: store
                         )
                         .equatable()
@@ -423,6 +424,7 @@ struct PRRow: View, Equatable {
     let localFolder: URL?
     /// Passed from PanelView so nickname changes trigger a row rebuild via ==.
     let nickname: String?
+    let originalTitle: String?
     /// Unowned for SwiftUI: store is reference-typed and lives for the app
     /// lifetime — not part of the Equatable comparison so `.equatable()` can
     /// short-circuit row rebuilds.
@@ -439,6 +441,7 @@ struct PRRow: View, Equatable {
             && lhs.isArchived == rhs.isArchived
             && lhs.localFolder == rhs.localFolder
             && lhs.nickname == rhs.nickname
+            && lhs.originalTitle == rhs.originalTitle
     }
 
     var body: some View {
@@ -460,8 +463,11 @@ struct PRRow: View, Equatable {
                     showTitleEditor = true
                 }
                 .popover(isPresented: $showTitleEditor, arrowEdge: .bottom) {
-                    TitleEditorView(text: $titleInput) {
+                    TitleEditorView(text: $titleInput, hasOriginal: originalTitle != nil) {
                         store.renameTitle(titleInput, for: pr)
+                        showTitleEditor = false
+                    } onClear: {
+                        store.clearTitleRename(for: pr)
                         showTitleEditor = false
                     }
                 }
@@ -586,7 +592,9 @@ struct PRRow: View, Equatable {
 
 struct TitleEditorView: View {
     @Binding var text: String
+    let hasOriginal: Bool
     let onSave: () -> Void
+    let onClear: () -> Void
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -599,6 +607,10 @@ struct TitleEditorView: View {
                 .focused($focused)
                 .onSubmit { onSave() }
             HStack {
+                Button("Revert to original") { onClear() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.red)
+                    .disabled(!hasOriginal)
                 Spacer()
                 Button("Rename") { onSave() }
                     .buttonStyle(.borderedProminent)
