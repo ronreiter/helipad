@@ -455,22 +455,30 @@ struct PRRow: View, Equatable {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            Text(nickname ?? pr.title)
-                .font(.callout)
-                .lineLimit(2)
-                .onTapGesture(count: 2) {
-                    titleInput = pr.title
-                    showTitleEditor = true
+            Group {
+                if let nickname {
+                    Text(nickname)
+                        .font(.callout.bold())
+                        .lineLimit(2)
                 }
-                .popover(isPresented: $showTitleEditor, arrowEdge: .bottom) {
-                    TitleEditorView(text: $titleInput, hasOriginal: originalTitle != nil) {
-                        store.renameTitle(titleInput, for: pr)
-                        showTitleEditor = false
-                    } onClear: {
-                        store.clearTitleRename(for: pr)
-                        showTitleEditor = false
+                Text(pr.title)
+                    .font(nickname != nil ? .caption : .callout)
+                    .foregroundStyle(nickname != nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+                    .lineLimit(nickname != nil ? 1 : 2)
+                    .onTapGesture(count: 2) {
+                        titleInput = pr.title
+                        showTitleEditor = true
                     }
-                }
+                    .popover(isPresented: $showTitleEditor, arrowEdge: .bottom) {
+                        TitleEditorView(text: $titleInput, hasOriginal: originalTitle != nil) {
+                            store.renameTitle(titleInput, for: pr)
+                            showTitleEditor = false
+                        } onClear: {
+                            store.clearTitleRename(for: pr)
+                            showTitleEditor = false
+                        }
+                    }
+            }
             HStack(spacing: 6) {
                 ciBadge
                 reviewBadge
