@@ -15,6 +15,9 @@ final class PRStore: ObservableObject {
 
     @Published var enabledFilters: Set<PullRequest.Status>
 
+    /// Repos to show. Empty = all repos.
+    @Published var selectedRepos: Set<String>
+
     private var cursor: String?
     private var loadMoreFailures = 0
     private var autoFillCount = 0
@@ -26,7 +29,10 @@ final class PRStore: ObservableObject {
     static let refreshInterval: TimeInterval = 300
     private static let archivedKey = "archivedPRs"
     private static let filtersKey = "statusFilters"
+    private static let selectedReposKey = "selectedRepos"
     private static let notifiedKey = "notifiedBlockedPRs"
+    private static let cachedPRsKey = "cachedPRs"
+    private static let cachedUpdatedKey = "cachedLastUpdated"
 
     /// URLs already notified as blocked-on-me; persisted so neither the
     /// periodic refresh nor an app restart fires the same PR twice.
@@ -36,22 +42,58 @@ final class PRStore: ObservableObject {
     private var notificationsSeeded: Bool
     private var armNotificationsOnNextRefresh = false
 
-    /// PRs filtered by the user's custom filter selection ("All PRs" tab).
-    var activePRs: [PullRequest] {
-        prs.filter { !archivedURLs.contains($0.url) && !$0.statuses.isDisjoint(with: enabledFilters) }
+    /// Filtered views — kept as stored @Published arrays so SwiftUI body
+    /// re-renders (e.g. tab switches) don't re-run the filter+statuses pass
+    /// on every PR. Recomputed only when `prs`, `archivedURLs`,
+    /// `enabledFilters`, or `selectedRepos` actually change.
+    @Published private(set) var activePRs: [PullRequest] = []
+    @Published private(set) var blockedOnMePRs: [PullRequest] = []
+    @Published private(set) var needsReviewPRs: [PullRequest] = []
+    @Published private(set) var archivedPRs: [PullRequest] = []
+    @Published private(set) var availableRepos: [String] = []
+
+    /// Cache of `pr.statuses` keyed by URL — cleared whenever `prs` is
+    /// replaced. `pr.statuses` is a non-trivial computed (Models.swift:91);
+    /// caching avoids 4× rebuilds per PR per render.
+    private var statusCache: [String: Set<PullRequest.Status>] = [:]
+
+    /// Cache of `~/GitHub/<repo>` existence keyed by short repo name. Saves a
+    /// synchronous stat() per PRRow body evaluation.
+    private var folderURLCache: [String: URL?] = [:]
+
+    private func statuses(of pr: PullRequest) -> Set<PullRequest.Status> {
+        if let cached = statusCache[pr.url] { return cached }
+        let computed = pr.statuses
+        statusCache[pr.url] = computed
+        return computed
     }
 
-    /// Approved or changes-requested: the ball is in the author's court.
-    var blockedOnMePRs: [PullRequest] {
-        prs.filter { !archivedURLs.contains($0.url) && !$0.statuses.isDisjoint(with: PullRequest.Status.blockedOnMe) }
+    func localFolder(for pr: PullRequest) -> URL? {
+        let key = pr.repoShortName
+        if let cached = folderURLCache[key] {
+            return cached
+        }
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("GitHub")
+            .appendingPathComponent(key)
+        let result: URL? = FileManager.default.fileExists(atPath: url.path) ? url : nil
+        folderURLCache[key] = result
+        return result
     }
 
-    var needsReviewPRs: [PullRequest] {
-        prs.filter { !archivedURLs.contains($0.url) && $0.statuses.contains(.needsReview) }
+    private func passesRepo(_ pr: PullRequest) -> Bool {
+        selectedRepos.isEmpty || selectedRepos.contains(pr.repository.nameWithOwner)
     }
 
-    var archivedPRs: [PullRequest] {
-        prs.filter { archivedURLs.contains($0.url) }
+    /// Rebuild the filtered lists. Call after any change to `prs`,
+    /// `archivedURLs`, `enabledFilters`, or `selectedRepos`.
+    private func recomputeFilteredLists() {
+        let visible = prs.filter { !archivedURLs.contains($0.url) && passesRepo($0) }
+        blockedOnMePRs = visible.filter { !statuses(of: $0).isDisjoint(with: PullRequest.Status.blockedOnMe) }
+        needsReviewPRs = visible.filter { statuses(of: $0).contains(.needsReview) }
+        activePRs = visible.filter { !statuses(of: $0).isDisjoint(with: enabledFilters) }
+        archivedPRs = prs.filter { archivedURLs.contains($0.url) && passesRepo($0) }
+        availableRepos = Array(Set(prs.map(\.repository.nameWithOwner))).sorted()
     }
 
     let isDemo = CommandLine.arguments.contains("--demo")
@@ -60,6 +102,7 @@ final class PRStore: ObservableObject {
         if isDemo {
             archivedURLs = DemoData.archivedURLs
             enabledFilters = Set(PullRequest.Status.allCases)
+            selectedRepos = []
             notifiedBlockedURLs = []
             notificationsSeeded = true
             return
@@ -77,6 +120,38 @@ final class PRStore: ObservableObject {
         } else {
             enabledFilters = PullRequest.Status.needsAttention
         }
+        selectedRepos = Set(UserDefaults.standard.stringArray(forKey: Self.selectedReposKey) ?? [])
+        hydrateFromCache()
+        recomputeFilteredLists()
+    }
+
+    /// Repaint last-known PRs immediately on launch so the panel doesn't sit on
+    /// "Loading PRs…" for a full network round trip. The pending refresh in
+    /// start() overwrites this within ~1s.
+    private func hydrateFromCache() {
+        if let data = UserDefaults.standard.data(forKey: Self.cachedPRsKey) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let cached = try? decoder.decode([PullRequest].self, from: data) {
+                prs = cached
+                hasMore = false  // unknown; loadMore() requires a cursor anyway
+            }
+        }
+        if let date = UserDefaults.standard.object(forKey: Self.cachedUpdatedKey) as? Date {
+            lastUpdated = date
+        }
+    }
+
+    private func persistCache() {
+        guard !isDemo else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(prs) {
+            UserDefaults.standard.set(data, forKey: Self.cachedPRsKey)
+        }
+        if let lastUpdated {
+            UserDefaults.standard.set(lastUpdated, forKey: Self.cachedUpdatedKey)
+        }
     }
 
     func toggleFilter(_ status: PullRequest.Status) {
@@ -85,18 +160,62 @@ final class PRStore: ObservableObject {
         } else {
             enabledFilters.insert(status)
         }
+        recomputeFilteredLists()
         guard !isDemo else { return }
         UserDefaults.standard.set(enabledFilters.map(\.rawValue), forKey: Self.filtersKey)
     }
 
+    func toggleRepo(_ repo: String) {
+        if selectedRepos.contains(repo) {
+            selectedRepos.remove(repo)
+        } else {
+            selectedRepos.insert(repo)
+        }
+        recomputeFilteredLists()
+        persistRepos()
+    }
+
+    func showOnlyRepo(_ repo: String) {
+        selectedRepos = [repo]
+        recomputeFilteredLists()
+        persistRepos()
+    }
+
+    func showAllRepos() {
+        selectedRepos.removeAll()
+        recomputeFilteredLists()
+        persistRepos()
+    }
+
+    private func persistRepos() {
+        guard !isDemo else { return }
+        if selectedRepos.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.selectedReposKey)
+        } else {
+            UserDefaults.standard.set(Array(selectedRepos), forKey: Self.selectedReposKey)
+        }
+    }
+
     func archive(_ pr: PullRequest) {
         archivedURLs.insert(pr.url)
+        recomputeFilteredLists()
         persistArchived()
     }
 
     func unarchive(_ pr: PullRequest) {
         archivedURLs.remove(pr.url)
+        recomputeFilteredLists()
         persistArchived()
+    }
+
+    /// Single entry point used by PRRow so its action closure doesn't depend
+    /// on the current tab — keeps the row Equatable-stable for SwiftUI diffing.
+    func toggleArchived(_ pr: PullRequest) {
+        if archivedURLs.contains(pr.url) {
+            unarchive(pr)
+        } else {
+            archive(pr)
+        }
     }
 
     private func persistArchived() {
@@ -109,6 +228,7 @@ final class PRStore: ObservableObject {
             prs = DemoData.prs + [DemoData.archivedPR]
             totalCount = DemoData.totalCount
             lastUpdated = Date()
+            recomputeFilteredLists()
             return
         }
         refresh()
@@ -119,7 +239,11 @@ final class PRStore: ObservableObject {
         }
     }
 
-    /// Reloads the first page; further pages load on demand via loadMore().
+    /// Reloads the first page and merges results into the cached list — fresh
+    /// fields for known PRs, new PRs prepended, and PRs that *should* have
+    /// appeared in page 1 but didn't (merged/closed since last refresh)
+    /// dropped. PRs deeper than page 1's cutoff are preserved across refreshes
+    /// so the user doesn't snap back to the top each cycle.
     func refresh() {
         guard !isLoading, !isDemo else { return }
         if armNotificationsOnNextRefresh {
@@ -131,7 +255,7 @@ final class PRStore: ObservableObject {
             do {
                 let search = try GitHubClient.fetchPageWithRetry(cursor: nil)
                 await MainActor.run {
-                    self.prs = search.nodes
+                    self.mergeFirstPage(search.nodes)
                     self.totalCount = search.issueCount
                     self.cursor = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : nil
                     self.hasMore = self.cursor != nil
@@ -140,6 +264,7 @@ final class PRStore: ObservableObject {
                     self.isLoading = false
                     self.autoFillCount = 0
                     self.notifyNewlyBlocked()
+                    self.persistCache()
                     self.fillIfNeeded()
                 }
             } catch {
@@ -149,6 +274,31 @@ final class PRStore: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Merge a fresh page-1 response into `self.prs` while preserving deeper
+    /// pages already loaded. Strategy: PRs in the freshness window (newer than
+    /// or equal to the oldest fresh PR) MUST appear in `fresh` to survive —
+    /// otherwise they're merged/closed and we drop them. PRs older than that
+    /// window are kept as-is.
+    private func mergeFirstPage(_ fresh: [PullRequest]) {
+        guard let cutoff = fresh.map(\.updatedAt).min() else {
+            // empty result — drop everything in the window (which is everything)
+            prs = []
+            statusCache.removeAll()
+            recomputeFilteredLists()
+            return
+        }
+        // Keep deeper-than-window PRs as-is; in-window PRs come from `fresh`
+        // (so missing ones — merged/closed since last refresh — get dropped).
+        let preserved = prs.filter { $0.updatedAt < cutoff }
+        let merged = fresh + preserved
+        // Sort updated-desc to match GitHub's ordering, in case a stale PR's
+        // updatedAt now sits between fresh items.
+        prs = merged.sorted { $0.updatedAt > $1.updatedAt }
+        // Invalidate cached statuses for fresh URLs (their fields just changed).
+        for pr in fresh { statusCache.removeValue(forKey: pr.url) }
+        recomputeFilteredLists()
     }
 
     /// Appends the next page (infinite scroll).
@@ -165,7 +315,9 @@ final class PRStore: ObservableObject {
                     self.hasMore = self.cursor != nil
                     self.isLoadingMore = false
                     self.loadMoreFailures = 0
+                    self.recomputeFilteredLists()
                     self.notifyNewlyBlocked()
+                    self.persistCache()
                     self.fillIfNeeded()
                 }
             } catch {
