@@ -216,6 +216,15 @@ struct PanelView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             Button {
+                store.toggleGroupByCluster()
+            } label: {
+                Image(systemName: store.groupByCluster
+                    ? "square.stack.3d.up.fill"
+                    : "square.stack.3d.up")
+            }
+            .buttonStyle(.borderless)
+            .help(store.groupByCluster ? "Show flat list" : "Group by cluster")
+            Button {
                 store.refresh()
             } label: {
                 if store.isLoading {
@@ -293,6 +302,25 @@ struct PanelView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if store.groupByCluster && searchText.isEmpty {
+                        let (groups, solos) = store.cluster(visiblePRs)
+                        ForEach(groups) { group in
+                            ClusterSection(cluster: group, isArchivedTab: tab == .archived, store: store)
+                            Divider().padding(.leading, 12)
+                        }
+                        ForEach(solos) { pr in
+                            PRRow(
+                                pr: pr,
+                                isArchived: tab == .archived,
+                                localFolder: store.localFolder(for: pr),
+                                nickname: store.nickname(for: pr),
+                                originalTitle: store.originalTitle(for: pr),
+                                store: store
+                            )
+                            .equatable()
+                            Divider().padding(.leading, 12)
+                        }
+                    } else {
                     ForEach(visiblePRs) { pr in
                         PRRow(
                             pr: pr,
@@ -305,6 +333,7 @@ struct PanelView: View {
                         .equatable()
                         Divider()
                             .padding(.leading, 12)
+                    }
                     }
                     if store.hasMore {
                         // Auto-load only when the list is long enough that
@@ -661,5 +690,133 @@ struct NicknameEditorView: View {
         }
         .padding(14)
         .onAppear { focused = true }
+    }
+}
+
+struct ClusterSection: View {
+    let cluster: Cluster
+    let isArchivedTab: Bool
+    @ObservedObject var store: PRStore
+    @State private var expanded = false
+    @State private var isHovering = false
+
+    private static let colorPresets: [(name: String, hue: Double)] = [
+        ("Red",    0.00),
+        ("Orange", 0.08),
+        ("Yellow", 0.14),
+        ("Green",  0.33),
+        ("Teal",   0.48),
+        ("Blue",   0.58),
+        ("Purple", 0.75),
+        ("Pink",   0.92),
+    ]
+
+    /// Accent color = user choice if set, else hash-based default. Same
+    /// cluster always gets the same color so the eye learns the mapping.
+    private var accent: Color {
+        Color(hue: store.clusterHue(cluster.id), saturation: 0.55, brightness: 0.9)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 12)
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.caption)
+                    .foregroundStyle(accent)
+                Text(cluster.displayName)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Text("\(cluster.prs.count) PRs")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(accent.opacity(0.15)))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                ZStack(alignment: .leading) {
+                    accent.opacity(isHovering ? 0.18 : 0.12)
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: 3)
+                }
+            )
+            .contentShape(Rectangle())
+            .onTapGesture { expanded.toggle() }
+            .onHover { isHovering = $0 }
+            .contextMenu {
+                Button("Rename cluster…") { promptRename() }
+                if store.clusterNames[cluster.id.key] != nil {
+                    Button("Reset to default name") {
+                        store.renameCluster(cluster.id, to: "")
+                    }
+                }
+                Divider()
+                Menu("Color") {
+                    ForEach(Self.colorPresets, id: \.name) { preset in
+                        Button {
+                            store.setClusterColor(cluster.id, hue: preset.hue)
+                        } label: {
+                            Label(preset.name, systemImage: "circle.fill")
+                                .foregroundStyle(Color(hue: preset.hue, saturation: 0.55, brightness: 0.9))
+                        }
+                    }
+                    if store.clusterColors[cluster.id.key] != nil {
+                        Divider()
+                        Button("Reset color") {
+                            store.setClusterColor(cluster.id, hue: nil)
+                        }
+                    }
+                }
+            }
+            if expanded {
+                VStack(spacing: 0) {
+                    ForEach(cluster.prs) { pr in
+                        PRRow(
+                            pr: pr,
+                            isArchived: isArchivedTab,
+                            localFolder: store.localFolder(for: pr),
+                            nickname: store.nickname(for: pr),
+                            originalTitle: store.originalTitle(for: pr),
+                            store: store
+                        )
+                        .equatable()
+                        if pr.url != cluster.prs.last?.url {
+                            Divider().padding(.leading, 12)
+                        }
+                    }
+                }
+                .background(
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: 3)
+                        .frame(maxHeight: .infinity, alignment: .leading),
+                    alignment: .leading
+                )
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func promptRename() {
+        let alert = NSAlert()
+        alert.messageText = "Rename cluster"
+        alert.informativeText = "Used only inside Helipad; the GitHub PRs aren't touched."
+        let field = NSTextField(string: cluster.displayName)
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            store.renameCluster(cluster.id, to: field.stringValue)
+        }
     }
 }

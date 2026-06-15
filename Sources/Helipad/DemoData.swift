@@ -52,7 +52,8 @@ enum DemoData {
         minutesAgo: Double,
         ci: String?,
         review: String?,
-        mergeable: String = "MERGEABLE"
+        mergeable: String = "MERGEABLE",
+        branch: String? = nil
     ) -> PullRequest {
         PullRequest(
             title: title,
@@ -63,6 +64,7 @@ enum DemoData {
             reviewRequests: nil,
             mergeable: mergeable,
             updatedAt: Date().addingTimeInterval(-minutesAgo * 60),
+            headRefName: branch,
             repository: .init(nameWithOwner: repo),
             commits: .init(nodes: ci.map { [.init(commit: .init(statusCheckRollup: .init(state: $0)))] } ?? [])
         )

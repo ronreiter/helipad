@@ -12,6 +12,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
             && lhs.mergeable == rhs.mergeable
             && lhs.updatedAt == rhs.updatedAt
             && lhs.ciState == rhs.ciState
+            && lhs.headRefName == rhs.headRefName
     }
 
     var title: String
@@ -22,6 +23,10 @@ struct PullRequest: Identifiable, Codable, Equatable {
     let reviewRequests: ReviewRequests?
     let mergeable: String?
     let updatedAt: Date
+    /// Branch name (GraphQL `headRefName`) — used to parse a Shortcut story
+    /// ID (`sc-NNNNN`) for auto-clustering. Optional so cached PRs from
+    /// older versions still decode.
+    let headRefName: String?
     let repository: Repository
     let commits: Commits
 

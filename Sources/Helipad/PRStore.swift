@@ -1,6 +1,30 @@
 import Foundation
 import Combine
 
+/// Stable identifier for a PR cluster. A cluster's signal is recovered from
+/// either the PR's branch name (Shortcut story ID) or the Claude Code session
+/// it was opened from.
+enum ClusterID: Hashable, Codable {
+    case shortcut(String)    // normalized lowercase "sc-71872"
+    case branchName(String)  // exact branch name (cross-repo match)
+    case session(String)     // 8-char `daemonShort` from ~/.claude/jobs/*/state.json
+
+    /// String key used for UserDefaults persistence of user-given names.
+    var key: String {
+        switch self {
+        case .shortcut(let s):   return "sc:\(s)"
+        case .branchName(let b): return "branch:\(b)"
+        case .session(let s):    return "session:\(s)"
+        }
+    }
+}
+
+struct Cluster: Identifiable {
+    let id: ClusterID
+    let displayName: String
+    let prs: [PullRequest]
+}
+
 @MainActor
 final class PRStore: ObservableObject {
     @Published var prs: [PullRequest] = []
@@ -23,6 +47,16 @@ final class PRStore: ObservableObject {
     /// Titles as fetched from GitHub before any local rename, keyed by PR URL.
     @Published var originalTitles: [String: String] = [:]
 
+    /// When true, the list view groups PRs into collapsible cluster sections
+    /// instead of rendering flat.
+    @Published var groupByCluster: Bool
+
+    /// User-given cluster names (key = ClusterID.key, value = display name).
+    @Published var clusterNames: [String: String]
+
+    /// User-chosen accent hue per cluster (0..1). Missing key = hash-based default.
+    @Published var clusterColors: [String: Double]
+
     private var cursor: String?
     private var loadMoreFailures = 0
     private var autoFillCount = 0
@@ -40,6 +74,16 @@ final class PRStore: ObservableObject {
     private static let notifiedKey = "notifiedBlockedPRs"
     private static let cachedPRsKey = "cachedPRs"
     private static let cachedUpdatedKey = "cachedLastUpdated"
+    private static let groupByClusterKey = "groupByCluster"
+    private static let clusterNamesKey = "clusterNames"
+    private static let clusterColorsKey = "clusterColors"
+
+    /// PR URL → Claude Code session info, rebuilt from ~/.claude/jobs/*/state.json.
+    private struct SessionInfo {
+        let id: String         // 8-char daemonShort
+        let name: String?      // user-set name from the registry
+    }
+    private var sessionByURL: [String: SessionInfo] = [:]
 
     /// URLs already notified as blocked-on-me; persisted so neither the
     /// periodic refresh nor an app restart fires the same PR twice.
@@ -92,6 +136,163 @@ final class PRStore: ObservableObject {
         selectedRepos.isEmpty || selectedRepos.contains(pr.repository.nameWithOwner)
     }
 
+    /// Walk ~/.claude/jobs/*/state.json and build PR-URL → session map. Cheap
+    /// (a few dozen small JSON files); called on every refresh so newly opened
+    /// sessions show up automatically.
+    private func reloadJobsRegistry() {
+        sessionByURL.removeAll()
+        let jobsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/jobs")
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: jobsDir, includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return }
+        for entry in entries {
+            let stateFile = entry.appendingPathComponent("state.json")
+            guard let data = try? Data(contentsOf: stateFile),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let short = json["daemonShort"] as? String else { continue }
+            let name = json["name"] as? String
+            let children = json["children"] as? [[String: Any]] ?? []
+            for child in children {
+                guard (child["kind"] as? String) == "pr",
+                      let href = child["href"] as? String else { continue }
+                sessionByURL[href] = SessionInfo(id: short, name: name)
+            }
+        }
+    }
+
+    /// Detect a Shortcut story ID anywhere in the branch name (case-insensitive).
+    private func shortcutID(from branch: String?) -> String? {
+        guard let branch else { return nil }
+        guard let range = branch.range(
+            of: #"sc-\d+"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) else { return nil }
+        return branch[range].lowercased()
+    }
+
+    /// Per-call helper used inside `cluster(_:)` once we know which branch
+    /// names recur. Signal order: sc-id (most intentional, cross-repo by
+    /// definition) → repeated branch name (cross-repo same-name match) → CC
+    /// session.
+    private func clusterID(of pr: PullRequest, branchCounts: [String: Int]) -> ClusterID? {
+        if let sc = shortcutID(from: pr.headRefName) {
+            return .shortcut(sc)
+        }
+        if let branch = pr.headRefName, (branchCounts[branch] ?? 0) >= 2 {
+            return .branchName(branch)
+        }
+        if let info = sessionByURL[pr.url] {
+            return .session(info.id)
+        }
+        return nil
+    }
+
+    private func defaultClusterName(for id: ClusterID, members: [PullRequest]) -> String {
+        let first = members.first
+        switch id {
+        case .shortcut(let sc):
+            if let title = first?.title {
+                return "[\(sc)] \(title)"
+            }
+            return "[\(sc)]"
+        case .branchName(let branch):
+            if let title = first?.title {
+                return "\(branch) — \(title)"
+            }
+            return branch
+        case .session(let short):
+            // Prefer the user's name from the CC registry if present.
+            if let info = members.lazy.compactMap({ self.sessionByURL[$0.url] }).first,
+               let name = info.name, !name.isEmpty {
+                return "[\(short)] \(name)"
+            }
+            if let title = first?.title {
+                return "[session \(short)] \(title)"
+            }
+            return "[session \(short)]"
+        }
+    }
+
+    /// Group PRs into (named clusters of size ≥ 2) + (solos, in original
+    /// order). Singletons fall through to the solo list — a cluster needs
+    /// siblings to be worth a section header.
+    func cluster(_ prs: [PullRequest]) -> (groups: [Cluster], solos: [PullRequest]) {
+        // Tally non-sc-id branch names so we can detect cross-repo matches
+        // (e.g. `feat/access-repartition` in two different repos).
+        var branchCounts: [String: Int] = [:]
+        for pr in prs {
+            if let branch = pr.headRefName, shortcutID(from: branch) == nil {
+                branchCounts[branch, default: 0] += 1
+            }
+        }
+        var byID: [ClusterID: [PullRequest]] = [:]
+        var unclustered: [PullRequest] = []
+        for pr in prs {
+            if let id = clusterID(of: pr, branchCounts: branchCounts) {
+                byID[id, default: []].append(pr)
+            } else {
+                unclustered.append(pr)
+            }
+        }
+        var solos = unclustered
+        var groups: [Cluster] = []
+        for (id, members) in byID {
+            if members.count < 2 {
+                solos.append(contentsOf: members)
+                continue
+            }
+            let sorted = members.sorted { $0.updatedAt > $1.updatedAt }
+            let name = clusterNames[id.key] ?? defaultClusterName(for: id, members: sorted)
+            groups.append(Cluster(id: id, displayName: name, prs: sorted))
+        }
+        groups.sort { ($0.prs.first?.updatedAt ?? .distantPast) > ($1.prs.first?.updatedAt ?? .distantPast) }
+        solos.sort { $0.updatedAt > $1.updatedAt }
+        return (groups, solos)
+    }
+
+    func renameCluster(_ id: ClusterID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            clusterNames.removeValue(forKey: id.key)
+        } else {
+            clusterNames[id.key] = trimmed
+        }
+        persistClusterNames()
+    }
+
+    /// Set the accent hue (0..1) for a cluster, or nil to reset to the
+    /// hash-based default.
+    func setClusterColor(_ id: ClusterID, hue: Double?) {
+        if let hue {
+            clusterColors[id.key] = hue
+        } else {
+            clusterColors.removeValue(forKey: id.key)
+        }
+        guard !isDemo else { return }
+        if clusterColors.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.clusterColorsKey)
+        } else {
+            UserDefaults.standard.set(clusterColors, forKey: Self.clusterColorsKey)
+        }
+    }
+
+    /// Hue (0..1) for a cluster — user-chosen if set, else green default.
+    func clusterHue(_ id: ClusterID) -> Double {
+        clusterColors[id.key] ?? 0.33
+    }
+
+    func toggleGroupByCluster() {
+        groupByCluster.toggle()
+        guard !isDemo else { return }
+        UserDefaults.standard.set(groupByCluster, forKey: Self.groupByClusterKey)
+    }
+
+    private func persistClusterNames() {
+        guard !isDemo else { return }
+        UserDefaults.standard.set(clusterNames, forKey: Self.clusterNamesKey)
+    }
+
     /// Rebuild the filtered lists. Call after any change to `prs`,
     /// `archivedURLs`, `enabledFilters`, or `selectedRepos`.
     private func recomputeFilteredLists() {
@@ -110,6 +311,9 @@ final class PRStore: ObservableObject {
             archivedURLs = DemoData.archivedURLs
             enabledFilters = Set(PullRequest.Status.allCases)
             selectedRepos = []
+            groupByCluster = false
+            clusterNames = [:]
+            clusterColors = [:]
             notifiedBlockedURLs = []
             notificationsSeeded = true
             return
@@ -130,7 +334,11 @@ final class PRStore: ObservableObject {
         selectedRepos = Set(UserDefaults.standard.stringArray(forKey: Self.selectedReposKey) ?? [])
         nicknames = (UserDefaults.standard.dictionary(forKey: Self.nicknamesKey) as? [String: String]) ?? [:]
         originalTitles = (UserDefaults.standard.dictionary(forKey: Self.originalTitlesKey) as? [String: String]) ?? [:]
+        groupByCluster = UserDefaults.standard.bool(forKey: Self.groupByClusterKey)
+        clusterNames = (UserDefaults.standard.dictionary(forKey: Self.clusterNamesKey) as? [String: String]) ?? [:]
+        clusterColors = (UserDefaults.standard.dictionary(forKey: Self.clusterColorsKey) as? [String: Double]) ?? [:]
         hydrateFromCache()
+        reloadJobsRegistry()
         recomputeFilteredLists()
     }
 
@@ -316,6 +524,7 @@ final class PRStore: ObservableObject {
             do {
                 let search = try GitHubClient.fetchPageWithRetry(cursor: nil)
                 await MainActor.run {
+                    self.reloadJobsRegistry()
                     self.mergeFirstPage(search.nodes)
                     self.totalCount = search.issueCount
                     self.cursor = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : nil

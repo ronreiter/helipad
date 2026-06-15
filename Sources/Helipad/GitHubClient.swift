@@ -30,6 +30,7 @@ struct GitHubClient {
             reviewRequests(first: 1) { totalCount }
             mergeable
             updatedAt
+            headRefName
             repository { nameWithOwner }
             commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
           }
