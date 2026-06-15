@@ -61,7 +61,7 @@ enum DemoData {
             number: number,
             isDraft: false,
             reviewDecision: review,
-            reviewRequests: nil,
+            latestReviews: .init(nodes: review.map { [.init(state: $0, author: .init(typename: "User"))] } ?? []),
             mergeable: mergeable,
             updatedAt: Date().addingTimeInterval(-minutesAgo * 60),
             headRefName: branch,

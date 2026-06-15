@@ -657,6 +657,8 @@ struct PRRow: View, Equatable {
             badge("Approved", systemImage: "checkmark.seal.fill", color: .green)
         case "CHANGES_REQUESTED":
             badge("Changes requested", systemImage: "arrow.uturn.backward.circle.fill", color: .red)
+        case "COMMENTED":
+            badge("Commented", systemImage: "bubble.left.fill", color: .orange)
         default:
             badge("Needs review", systemImage: "eye", color: .blue)
         }

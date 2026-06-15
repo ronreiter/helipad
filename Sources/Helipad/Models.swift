@@ -7,8 +7,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
         lhs.url == rhs.url
             && lhs.title == rhs.title
             && lhs.isDraft == rhs.isDraft
-            && lhs.reviewDecision == rhs.reviewDecision
-            && (lhs.reviewRequests?.totalCount ?? 0) == (rhs.reviewRequests?.totalCount ?? 0)
+            && lhs.effectiveReviewDecision == rhs.effectiveReviewDecision
             && lhs.mergeable == rhs.mergeable
             && lhs.updatedAt == rhs.updatedAt
             && lhs.ciState == rhs.ciState
@@ -20,7 +19,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
     let number: Int
     let isDraft: Bool
     let reviewDecision: String?
-    let reviewRequests: ReviewRequests?
+    let latestReviews: LatestReviews?
     let mergeable: String?
     let updatedAt: Date
     /// Branch name (GraphQL `headRefName`) — used to parse a Shortcut story
@@ -52,8 +51,25 @@ struct PullRequest: Identifiable, Codable, Equatable {
         let state: String
     }
 
-    struct ReviewRequests: Codable {
-        let totalCount: Int
+    struct LatestReviews: Codable {
+        let nodes: [Review]
+    }
+
+    struct Review: Codable {
+        let state: String
+        let author: ReviewAuthor?
+    }
+
+    struct ReviewAuthor: Codable {
+        let typename: String
+
+        /// Copilot's auto-reviewer (and other bots) comment on essentially
+        /// every PR; only humans put the ball back in the author's court.
+        var isBot: Bool { typename == "Bot" }
+
+        enum CodingKeys: String, CodingKey {
+            case typename = "__typename"
+        }
     }
 
     var repoShortName: String {
@@ -68,19 +84,27 @@ struct PullRequest: Identifiable, Codable, Equatable {
         mergeable == "CONFLICTING"
     }
 
-    /// reviewDecision stays CHANGES_REQUESTED after the author re-requests a
-    /// review; a pending review request means the ball is back with the
-    /// reviewer, so treat it as needing review.
+    /// GitHub's aggregate `reviewDecision` flips to REVIEW_REQUIRED whenever a
+    /// required reviewer (e.g. a CODEOWNERS team) is still pending — which
+    /// hides a review a human already completed. We classify from the latest
+    /// review per human reviewer instead: any completed human review puts the
+    /// ball back in the author's court, no matter what other reviews are still
+    /// pending. Changes-requested wins over an approval, which wins over a
+    /// plain comment; bots are ignored.
     var effectiveReviewDecision: String? {
-        if reviewDecision == "CHANGES_REQUESTED", (reviewRequests?.totalCount ?? 0) > 0 {
-            return "REVIEW_REQUIRED"
-        }
+        let states = Set((latestReviews?.nodes ?? [])
+            .filter { $0.author?.isBot != true }
+            .map(\.state))
+        if states.contains("CHANGES_REQUESTED") { return "CHANGES_REQUESTED" }
+        if states.contains("APPROVED") { return "APPROVED" }
+        if states.contains("COMMENTED") { return "COMMENTED" }
         return reviewDecision
     }
 
     enum Status: String, CaseIterable {
         case approved
         case changesRequested
+        case commented
         case conflicts
         case ciFailed
         case needsReview
@@ -91,6 +115,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
             switch self {
             case .approved: return "Approved"
             case .changesRequested: return "Changes requested"
+            case .commented: return "Commented"
             case .conflicts: return "Conflicts"
             case .ciFailed: return "CI failed"
             case .needsReview: return "Needs review"
@@ -100,10 +125,10 @@ struct PullRequest: Identifiable, Codable, Equatable {
         }
 
         /// Statuses that mean the ball is in the author's court.
-        static let blockedOnMe: Set<Status> = [.approved, .changesRequested]
+        static let blockedOnMe: Set<Status> = [.approved, .changesRequested, .commented]
 
         /// Statuses that mean the PR needs the author's attention.
-        static let needsAttention: Set<Status> = [.approved, .changesRequested]
+        static let needsAttention: Set<Status> = [.approved, .changesRequested, .commented]
     }
 
     var statuses: Set<Status> {
@@ -111,6 +136,7 @@ struct PullRequest: Identifiable, Codable, Equatable {
         switch effectiveReviewDecision {
         case "APPROVED": result.insert(.approved)
         case "CHANGES_REQUESTED": result.insert(.changesRequested)
+        case "COMMENTED": result.insert(.commented)
         default: result.insert(.needsReview)
         }
         switch ciState {
