@@ -131,6 +131,9 @@ struct PanelView: View {
                 .keyboardShortcut("4", modifiers: .command)
             Button("Help") { showShortcuts.toggle() }
                 .keyboardShortcut("?", modifiers: [.command, .shift])
+            // Hidden easter-egg / demo shortcut for the Blocking-cleared confetti.
+            Button("Fire confetti") { triggerConfetti() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
         }
         .opacity(0)
         .allowsHitTesting(false)
