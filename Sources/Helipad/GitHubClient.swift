@@ -15,29 +15,51 @@ enum GitHubClientError: Error, LocalizedError {
 }
 
 struct GitHubClient {
-    static let query = """
-    query($cursor: String) {
-      search(query: "is:pr is:open draft:false author:@me \\"Generated with Claude Code\\" in:body sort:updated-desc", type: ISSUE, first: 25, after: $cursor) {
-        issueCount
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          ... on PullRequest {
-            title
-            url
-            number
-            isDraft
-            reviewDecision
-            reviewRequests(first: 1) { totalCount }
-            mergeable
-            updatedAt
-            headRefName
-            repository { nameWithOwner }
-            commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+    /// Which set of PRs to query. Separate searches because the Claude-Code
+    /// authored filter doesn't apply to PRs by other people that you're
+    /// requested to review.
+    enum Kind {
+        case authored        // PRs I authored via Claude Code
+        case reviewRequested // PRs blocking me as a reviewer
+
+        var searchString: String {
+            switch self {
+            case .authored:
+                return #"is:pr is:open draft:false author:@me \"Generated with Claude Code\" in:body sort:updated-desc"#
+            case .reviewRequested:
+                // `user-review-requested` excludes PRs requested via a team
+                // you happen to belong to — only PRs where you are tagged as
+                // an individual reviewer count.
+                return "is:pr is:open draft:false user-review-requested:@me sort:updated-desc"
+            }
+        }
+    }
+
+    private static func query(for kind: Kind) -> String {
+        """
+        query($cursor: String) {
+          search(query: "\(kind.searchString)", type: ISSUE, first: 25, after: $cursor) {
+            issueCount
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              ... on PullRequest {
+                title
+                url
+                number
+                isDraft
+                reviewDecision
+                reviewRequests(first: 1) { totalCount }
+                mergeable
+                updatedAt
+                headRefName
+                repository { nameWithOwner }
+                commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+              }
+            }
           }
         }
-      }
+        """
     }
-    """
 
     static let maxPages = 20
 
@@ -62,11 +84,11 @@ struct GitHubClient {
     }
 
     /// Fetches one page, retrying once (GitHub's search API 502s intermittently).
-    static func fetchPageWithRetry(cursor: String?) throws -> SearchResponse.Search {
+    static func fetchPageWithRetry(kind: Kind = .authored, cursor: String?) throws -> SearchResponse.Search {
         do {
-            return try fetchPage(cursor: cursor)
+            return try fetchPage(kind: kind, cursor: cursor)
         } catch {
-            return try fetchPage(cursor: cursor)
+            return try fetchPage(kind: kind, cursor: cursor)
         }
     }
 
@@ -88,14 +110,14 @@ struct GitHubClient {
         return (total, prs)
     }
 
-    private static func fetchPage(cursor: String?) throws -> SearchResponse.Search {
+    private static func fetchPage(kind: Kind, cursor: String?) throws -> SearchResponse.Search {
         guard let gh = ghPath() else {
             throw GitHubClientError.ghNotFound
         }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: gh)
-        var arguments = ["api", "graphql", "-f", "query=\(query)"]
+        var arguments = ["api", "graphql", "-f", "query=\(query(for: kind))"]
         if let cursor {
             arguments += ["-f", "cursor=\(cursor)"]
         }

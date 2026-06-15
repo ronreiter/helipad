@@ -7,6 +7,7 @@ struct PanelView: View {
     enum Tab {
         case blockedOnMe
         case needsReview
+        case imBlocking  // PRs where I am a requested reviewer
         case archived
         case all
     }
@@ -25,7 +26,7 @@ struct PanelView: View {
             Divider()
             content
         }
-        .frame(minWidth: 430, maxWidth: .infinity, minHeight: 320, maxHeight: .infinity)
+        .frame(minWidth: 490, maxWidth: .infinity, minHeight: 320, maxHeight: .infinity)
         .background(.ultraThinMaterial)
         .background(shortcutSurface)
     }
@@ -149,6 +150,7 @@ struct PanelView: View {
         return Picker("", selection: tabBinding) {
             Text("Blocked on me (\(store.blockedOnMePRs.count)\(more))").tag(Tab.blockedOnMe)
             Text("Needs review (\(store.needsReviewPRs.count)\(more))").tag(Tab.needsReview)
+            Text("Blocking (\(store.prsToReview.count))").tag(Tab.imBlocking)
             Text("Archived (\(store.archivedPRs.count)\(more))").tag(Tab.archived)
             Text("All (\(store.activePRs.count)\(more))").tag(Tab.all)
         }
@@ -390,6 +392,7 @@ struct PanelView: View {
         switch tab {
         case .blockedOnMe: return store.blockedOnMePRs
         case .needsReview: return store.needsReviewPRs
+        case .imBlocking:  return store.imBlockingPRs
         case .archived: return store.archivedPRs
         case .all: return store.activePRs
         }
@@ -427,6 +430,7 @@ struct PanelView: View {
         switch tab {
         case .blockedOnMe: return "Nothing blocked on you"
         case .needsReview: return "Nothing waiting for review"
+        case .imBlocking:  return "No PRs awaiting your review"
         case .archived: return "No archived PRs"
         case .all: return "No PRs match the filters"
         }
