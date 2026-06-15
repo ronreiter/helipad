@@ -17,6 +17,10 @@ struct PanelView: View {
     @State private var showShortcuts = false
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
+    /// One UUID per in-flight confetti burst — supports overlapping fires.
+    @State private var activeConfetti: [UUID] = []
+    /// Previous count, used to detect the >0 → 0 transition (not 0 → 0).
+    @State private var lastBlockingCount: Int? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +33,40 @@ struct PanelView: View {
         .frame(minWidth: 490, maxWidth: .infinity, minHeight: 320, maxHeight: .infinity)
         .background(.ultraThinMaterial)
         .background(shortcutSurface)
+        .overlay {
+            ZStack {
+                ForEach(activeConfetti, id: \.self) { id in
+                    ConfettiView()
+                        .id(id)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        .onChange(of: store.imBlockingPRs.count) { newCount in
+            // Fire only on a real transition from "some" to "none" — never on
+            // launch (lastBlockingCount nil) and never on 0 → 0.
+            if let prev = lastBlockingCount, prev > 0, newCount == 0 {
+                triggerConfetti()
+            }
+            lastBlockingCount = newCount
+        }
+        .onAppear {
+            // Seed the previous count so the very first onChange doesn't fire
+            // if we hydrated from cache with 0 already.
+            if lastBlockingCount == nil {
+                lastBlockingCount = store.imBlockingPRs.count
+            }
+        }
+    }
+
+    private func triggerConfetti() {
+        let id = UUID()
+        activeConfetti.append(id)
+        // Auto-remove after the longest possible piece flight finishes
+        // (duration max ≈ 3.2s + delay max ≈ 0.4s, plus buffer).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) {
+            activeConfetti.removeAll { $0 == id }
+        }
     }
 
     /// Invisible Buttons that exist only to register keyboard shortcuts.
@@ -98,6 +136,9 @@ struct PanelView: View {
                 .keyboardShortcut("4", modifiers: .command)
             Button("Help") { showShortcuts.toggle() }
                 .keyboardShortcut("?", modifiers: [.command, .shift])
+            // Hidden easter-egg / demo shortcut for the Blocking-cleared confetti.
+            Button("Fire confetti") { triggerConfetti() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
         }
         .opacity(0)
         .allowsHitTesting(false)
