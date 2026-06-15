@@ -17,8 +17,8 @@ struct PanelView: View {
     @State private var showShortcuts = false
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
-    /// Set true for ~4s when the Blocking list drains to empty.
-    @State private var showConfetti = false
+    /// One UUID per in-flight confetti burst — supports overlapping fires.
+    @State private var activeConfetti: [UUID] = []
     /// Previous count, used to detect the >0 → 0 transition (not 0 → 0).
     @State private var lastBlockingCount: Int? = nil
 
@@ -34,11 +34,13 @@ struct PanelView: View {
         .background(.ultraThinMaterial)
         .background(shortcutSurface)
         .overlay {
-            if showConfetti {
-                ConfettiView()
-                    .transition(.opacity)
-                    .id(UUID())  // force a fresh particle set each fire
+            ZStack {
+                ForEach(activeConfetti, id: \.self) { id in
+                    ConfettiView()
+                        .id(id)
+                }
             }
+            .allowsHitTesting(false)
         }
         .onChange(of: store.imBlockingPRs.count) { newCount in
             // Fire only on a real transition from "some" to "none" — never on
@@ -58,9 +60,12 @@ struct PanelView: View {
     }
 
     private func triggerConfetti() {
-        withAnimation { showConfetti = true }
+        let id = UUID()
+        activeConfetti.append(id)
+        // Auto-remove after the longest possible piece flight finishes
+        // (duration max ≈ 3.2s + delay max ≈ 0.4s, plus buffer).
         DispatchQueue.main.asyncAfter(deadline: .now() + 4.2) {
-            withAnimation { showConfetti = false }
+            activeConfetti.removeAll { $0 == id }
         }
     }
 
