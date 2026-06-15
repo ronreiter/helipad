@@ -48,7 +48,7 @@ struct GitHubClient {
                 number
                 isDraft
                 reviewDecision
-                reviewRequests(first: 1) { totalCount }
+                latestReviews(first: 20) { nodes { state author { __typename } } }
                 mergeable
                 updatedAt
                 headRefName
