@@ -21,7 +21,7 @@ if CommandLine.arguments.contains("--dump") {
 final class FloatingPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 430, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 490, height: 560),
             styleMask: [.nonactivatingPanel, .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -33,7 +33,7 @@ final class FloatingPanel: NSPanel {
         isMovableByWindowBackground = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        contentMinSize = NSSize(width: 430, height: 320)
+        contentMinSize = NSSize(width: 490, height: 320)
         setFrameAutosaveName("HelipadPanel")
         self.contentView = contentView
     }

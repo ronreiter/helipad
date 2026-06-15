@@ -28,6 +28,9 @@ struct Cluster: Identifiable {
 @MainActor
 final class PRStore: ObservableObject {
     @Published var prs: [PullRequest] = []
+    /// PRs where the user is a requested reviewer — "I'm blocking" tab.
+    /// Fetched in parallel with `prs` on each refresh.
+    @Published private(set) var prsToReview: [PullRequest] = []
     @Published var totalCount: Int = 0
     @Published var lastUpdated: Date?
     @Published var errorMessage: String?
@@ -73,6 +76,7 @@ final class PRStore: ObservableObject {
     private static let originalTitlesKey = "originalTitles"
     private static let notifiedKey = "notifiedBlockedPRs"
     private static let cachedPRsKey = "cachedPRs"
+    private static let cachedReviewPRsKey = "cachedReviewPRs"
     private static let cachedUpdatedKey = "cachedLastUpdated"
     private static let groupByClusterKey = "groupByCluster"
     private static let clusterNamesKey = "clusterNames"
@@ -100,6 +104,7 @@ final class PRStore: ObservableObject {
     @Published private(set) var activePRs: [PullRequest] = []
     @Published private(set) var blockedOnMePRs: [PullRequest] = []
     @Published private(set) var needsReviewPRs: [PullRequest] = []
+    @Published private(set) var imBlockingPRs: [PullRequest] = []
     @Published private(set) var archivedPRs: [PullRequest] = []
     @Published private(set) var availableRepos: [String] = []
 
@@ -300,8 +305,13 @@ final class PRStore: ObservableObject {
         blockedOnMePRs = visible.filter { !statuses(of: $0).isDisjoint(with: PullRequest.Status.blockedOnMe) }
         needsReviewPRs = visible.filter { statuses(of: $0).contains(.needsReview) }
         activePRs = visible.filter { !statuses(of: $0).isDisjoint(with: enabledFilters) }
-        archivedPRs = prs.filter { archivedURLs.contains($0.url) && passesRepo($0) }
-        availableRepos = Array(Set(prs.map(\.repository.nameWithOwner))).sorted()
+        // "I'm blocking" honors archive + repo filters; status filter is bypassed
+        // (these PRs are already specifically awaiting your review).
+        imBlockingPRs = prsToReview.filter { !archivedURLs.contains($0.url) && passesRepo($0) }
+        // Archived tab unions archived PRs from both sources so archive works
+        // regardless of which tab the PR came from.
+        archivedPRs = (prs + prsToReview).filter { archivedURLs.contains($0.url) && passesRepo($0) }
+        availableRepos = Array(Set((prs + prsToReview).map(\.repository.nameWithOwner))).sorted()
     }
 
     let isDemo = CommandLine.arguments.contains("--demo")
@@ -346,13 +356,16 @@ final class PRStore: ObservableObject {
     /// "Loading PRs…" for a full network round trip. The pending refresh in
     /// start() overwrites this within ~1s.
     private func hydrateFromCache() {
-        if let data = UserDefaults.standard.data(forKey: Self.cachedPRsKey) {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            if let cached = try? decoder.decode([PullRequest].self, from: data) {
-                prs = cached
-                hasMore = false  // unknown; loadMore() requires a cursor anyway
-            }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let data = UserDefaults.standard.data(forKey: Self.cachedPRsKey),
+           let cached = try? decoder.decode([PullRequest].self, from: data) {
+            prs = cached
+            hasMore = false  // unknown; loadMore() requires a cursor anyway
+        }
+        if let data = UserDefaults.standard.data(forKey: Self.cachedReviewPRsKey),
+           let cached = try? decoder.decode([PullRequest].self, from: data) {
+            prsToReview = cached
         }
         if let date = UserDefaults.standard.object(forKey: Self.cachedUpdatedKey) as? Date {
             lastUpdated = date
@@ -365,6 +378,9 @@ final class PRStore: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
         if let data = try? encoder.encode(prs) {
             UserDefaults.standard.set(data, forKey: Self.cachedPRsKey)
+        }
+        if let data = try? encoder.encode(prsToReview) {
+            UserDefaults.standard.set(data, forKey: Self.cachedReviewPRsKey)
         }
         if let lastUpdated {
             UserDefaults.standard.set(lastUpdated, forKey: Self.cachedUpdatedKey)
@@ -521,27 +537,32 @@ final class PRStore: ObservableObject {
         }
         isLoading = true
         Task.detached(priority: .userInitiated) {
-            do {
-                let search = try GitHubClient.fetchPageWithRetry(cursor: nil)
-                await MainActor.run {
-                    self.reloadJobsRegistry()
+            // Fire both queries in parallel — they're independent searches.
+            async let authored: SearchResponse.Search? = try? GitHubClient.fetchPageWithRetry(kind: .authored, cursor: nil)
+            async let review:   SearchResponse.Search? = try? GitHubClient.fetchPageWithRetry(kind: .reviewRequested, cursor: nil)
+            let authoredResult = await authored
+            let reviewResult = await review
+            await MainActor.run {
+                self.reloadJobsRegistry()
+                if let search = authoredResult {
                     self.mergeFirstPage(search.nodes)
                     self.totalCount = search.issueCount
                     self.cursor = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : nil
                     self.hasMore = self.cursor != nil
-                    self.lastUpdated = Date()
                     self.errorMessage = nil
-                    self.isLoading = false
-                    self.autoFillCount = 0
-                    self.notifyNewlyBlocked()
-                    self.persistCache()
-                    self.fillIfNeeded()
+                } else {
+                    self.errorMessage = "Couldn't fetch your authored PRs"
                 }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
+                if let search = reviewResult {
+                    self.prsToReview = search.nodes
+                    self.recomputeFilteredLists()  // refresh imBlockingPRs
                 }
+                self.lastUpdated = Date()
+                self.isLoading = false
+                self.autoFillCount = 0
+                self.notifyNewlyBlocked()
+                self.persistCache()
+                self.fillIfNeeded()
             }
         }
     }
@@ -577,7 +598,7 @@ final class PRStore: ObservableObject {
         isLoadingMore = true
         Task.detached(priority: .userInitiated) {
             do {
-                let search = try GitHubClient.fetchPageWithRetry(cursor: cursor)
+                let search = try GitHubClient.fetchPageWithRetry(kind: .authored, cursor: cursor)
                 await MainActor.run {
                     let known = Set(self.prs.map(\.url))
                     self.prs.append(contentsOf: search.nodes.filter { !known.contains($0.url) })
