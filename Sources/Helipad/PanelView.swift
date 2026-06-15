@@ -697,31 +697,58 @@ struct ClusterSection: View {
     let cluster: Cluster
     let isArchivedTab: Bool
     @ObservedObject var store: PRStore
-    @State private var expanded = true
+    @State private var expanded = false
     @State private var isHovering = false
+
+    private static let colorPresets: [(name: String, hue: Double)] = [
+        ("Red",    0.00),
+        ("Orange", 0.08),
+        ("Yellow", 0.14),
+        ("Green",  0.33),
+        ("Teal",   0.48),
+        ("Blue",   0.58),
+        ("Purple", 0.75),
+        ("Pink",   0.92),
+    ]
+
+    /// Accent color = user choice if set, else hash-based default. Same
+    /// cluster always gets the same color so the eye learns the mapping.
+    private var accent: Color {
+        Color(hue: store.clusterHue(cluster.id), saturation: 0.55, brightness: 0.9)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: expanded ? "chevron.down" : "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 10)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 12)
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.caption)
+                    .foregroundStyle(accent)
                 Text(cluster.displayName)
-                    .font(.caption.weight(.semibold))
+                    .font(.callout.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                Text("\(cluster.prs.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(Capsule().fill(Color.primary.opacity(0.07)))
+                Text("\(cluster.prs.count) PRs")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(accent.opacity(0.15)))
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isHovering ? Color.primary.opacity(0.05) : Color.primary.opacity(0.02))
+            .padding(.vertical, 9)
+            .background(
+                ZStack(alignment: .leading) {
+                    accent.opacity(isHovering ? 0.18 : 0.12)
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: 3)
+                }
+            )
             .contentShape(Rectangle())
             .onTapGesture { expanded.toggle() }
             .onHover { isHovering = $0 }
@@ -732,24 +759,51 @@ struct ClusterSection: View {
                         store.renameCluster(cluster.id, to: "")
                     }
                 }
-            }
-            if expanded {
-                ForEach(cluster.prs) { pr in
-                    PRRow(
-                        pr: pr,
-                        isArchived: isArchivedTab,
-                        localFolder: store.localFolder(for: pr),
-                        nickname: store.nickname(for: pr),
-                        originalTitle: store.originalTitle(for: pr),
-                        store: store
-                    )
-                    .equatable()
-                    if pr.url != cluster.prs.last?.url {
-                        Divider().padding(.leading, 12)
+                Divider()
+                Menu("Color") {
+                    ForEach(Self.colorPresets, id: \.name) { preset in
+                        Button {
+                            store.setClusterColor(cluster.id, hue: preset.hue)
+                        } label: {
+                            Label(preset.name, systemImage: "circle.fill")
+                                .foregroundStyle(Color(hue: preset.hue, saturation: 0.55, brightness: 0.9))
+                        }
+                    }
+                    if store.clusterColors[cluster.id.key] != nil {
+                        Divider()
+                        Button("Reset color") {
+                            store.setClusterColor(cluster.id, hue: nil)
+                        }
                     }
                 }
             }
+            if expanded {
+                VStack(spacing: 0) {
+                    ForEach(cluster.prs) { pr in
+                        PRRow(
+                            pr: pr,
+                            isArchived: isArchivedTab,
+                            localFolder: store.localFolder(for: pr),
+                            nickname: store.nickname(for: pr),
+                            originalTitle: store.originalTitle(for: pr),
+                            store: store
+                        )
+                        .equatable()
+                        if pr.url != cluster.prs.last?.url {
+                            Divider().padding(.leading, 12)
+                        }
+                    }
+                }
+                .background(
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: 3)
+                        .frame(maxHeight: .infinity, alignment: .leading),
+                    alignment: .leading
+                )
+            }
         }
+        .padding(.top, 4)
     }
 
     private func promptRename() {

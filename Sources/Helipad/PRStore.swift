@@ -5,14 +5,16 @@ import Combine
 /// either the PR's branch name (Shortcut story ID) or the Claude Code session
 /// it was opened from.
 enum ClusterID: Hashable, Codable {
-    case shortcut(String)  // normalized lowercase "sc-71872"
-    case session(String)   // 8-char `daemonShort` from ~/.claude/jobs/*/state.json
+    case shortcut(String)    // normalized lowercase "sc-71872"
+    case branchName(String)  // exact branch name (cross-repo match)
+    case session(String)     // 8-char `daemonShort` from ~/.claude/jobs/*/state.json
 
     /// String key used for UserDefaults persistence of user-given names.
     var key: String {
         switch self {
-        case .shortcut(let s): return "sc:\(s)"
-        case .session(let s):  return "session:\(s)"
+        case .shortcut(let s):   return "sc:\(s)"
+        case .branchName(let b): return "branch:\(b)"
+        case .session(let s):    return "session:\(s)"
         }
     }
 }
@@ -52,6 +54,9 @@ final class PRStore: ObservableObject {
     /// User-given cluster names (key = ClusterID.key, value = display name).
     @Published var clusterNames: [String: String]
 
+    /// User-chosen accent hue per cluster (0..1). Missing key = hash-based default.
+    @Published var clusterColors: [String: Double]
+
     private var cursor: String?
     private var loadMoreFailures = 0
     private var autoFillCount = 0
@@ -71,6 +76,7 @@ final class PRStore: ObservableObject {
     private static let cachedUpdatedKey = "cachedLastUpdated"
     private static let groupByClusterKey = "groupByCluster"
     private static let clusterNamesKey = "clusterNames"
+    private static let clusterColorsKey = "clusterColors"
 
     /// PR URL → Claude Code session info, rebuilt from ~/.claude/jobs/*/state.json.
     private struct SessionInfo {
@@ -165,9 +171,16 @@ final class PRStore: ObservableObject {
         return branch[range].lowercased()
     }
 
-    private func clusterID(of pr: PullRequest) -> ClusterID? {
+    /// Per-call helper used inside `cluster(_:)` once we know which branch
+    /// names recur. Signal order: sc-id (most intentional, cross-repo by
+    /// definition) → repeated branch name (cross-repo same-name match) → CC
+    /// session.
+    private func clusterID(of pr: PullRequest, branchCounts: [String: Int]) -> ClusterID? {
         if let sc = shortcutID(from: pr.headRefName) {
             return .shortcut(sc)
+        }
+        if let branch = pr.headRefName, (branchCounts[branch] ?? 0) >= 2 {
+            return .branchName(branch)
         }
         if let info = sessionByURL[pr.url] {
             return .session(info.id)
@@ -183,6 +196,11 @@ final class PRStore: ObservableObject {
                 return "[\(sc)] \(title)"
             }
             return "[\(sc)]"
+        case .branchName(let branch):
+            if let title = first?.title {
+                return "\(branch) — \(title)"
+            }
+            return branch
         case .session(let short):
             // Prefer the user's name from the CC registry if present.
             if let info = members.lazy.compactMap({ self.sessionByURL[$0.url] }).first,
@@ -200,10 +218,18 @@ final class PRStore: ObservableObject {
     /// order). Singletons fall through to the solo list — a cluster needs
     /// siblings to be worth a section header.
     func cluster(_ prs: [PullRequest]) -> (groups: [Cluster], solos: [PullRequest]) {
+        // Tally non-sc-id branch names so we can detect cross-repo matches
+        // (e.g. `feat/access-repartition` in two different repos).
+        var branchCounts: [String: Int] = [:]
+        for pr in prs {
+            if let branch = pr.headRefName, shortcutID(from: branch) == nil {
+                branchCounts[branch, default: 0] += 1
+            }
+        }
         var byID: [ClusterID: [PullRequest]] = [:]
         var unclustered: [PullRequest] = []
         for pr in prs {
-            if let id = clusterID(of: pr) {
+            if let id = clusterID(of: pr, branchCounts: branchCounts) {
                 byID[id, default: []].append(pr)
             } else {
                 unclustered.append(pr)
@@ -233,6 +259,27 @@ final class PRStore: ObservableObject {
             clusterNames[id.key] = trimmed
         }
         persistClusterNames()
+    }
+
+    /// Set the accent hue (0..1) for a cluster, or nil to reset to the
+    /// hash-based default.
+    func setClusterColor(_ id: ClusterID, hue: Double?) {
+        if let hue {
+            clusterColors[id.key] = hue
+        } else {
+            clusterColors.removeValue(forKey: id.key)
+        }
+        guard !isDemo else { return }
+        if clusterColors.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.clusterColorsKey)
+        } else {
+            UserDefaults.standard.set(clusterColors, forKey: Self.clusterColorsKey)
+        }
+    }
+
+    /// Hue (0..1) for a cluster — user-chosen if set, else green default.
+    func clusterHue(_ id: ClusterID) -> Double {
+        clusterColors[id.key] ?? 0.33
     }
 
     func toggleGroupByCluster() {
@@ -266,6 +313,7 @@ final class PRStore: ObservableObject {
             selectedRepos = []
             groupByCluster = false
             clusterNames = [:]
+            clusterColors = [:]
             notifiedBlockedURLs = []
             notificationsSeeded = true
             return
@@ -288,6 +336,7 @@ final class PRStore: ObservableObject {
         originalTitles = (UserDefaults.standard.dictionary(forKey: Self.originalTitlesKey) as? [String: String]) ?? [:]
         groupByCluster = UserDefaults.standard.bool(forKey: Self.groupByClusterKey)
         clusterNames = (UserDefaults.standard.dictionary(forKey: Self.clusterNamesKey) as? [String: String]) ?? [:]
+        clusterColors = (UserDefaults.standard.dictionary(forKey: Self.clusterColorsKey) as? [String: Double]) ?? [:]
         hydrateFromCache()
         reloadJobsRegistry()
         recomputeFilteredLists()
