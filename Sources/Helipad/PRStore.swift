@@ -536,16 +536,35 @@ final class PRStore: ObservableObject {
             armNotificationsOnNextRefresh = false
         }
         isLoading = true
+        let cachedPRs = self.prs
         Task.detached(priority: .userInitiated) {
             // Fire both queries in parallel — they're independent searches.
             async let authored: SearchResponse.Search? = try? GitHubClient.fetchPageWithRetry(kind: .authored, cursor: nil)
             async let review:   SearchResponse.Search? = try? GitHubClient.fetchPageWithRetry(kind: .reviewRequested, cursor: nil)
             let authoredResult = await authored
             let reviewResult = await review
+
+            // Verify the open state of any cached PR not in fresh page 1.
+            // Without this, closed/merged PRs deeper than the freshness window
+            // stick forever — the `is:open` search just omits them, which on
+            // its own is indistinguishable from "still open but pushed below
+            // the page-1 cutoff" inside mergeFirstPage.
+            let stillOpenURLs: Set<String> = {
+                guard let search = authoredResult else { return Set(cachedPRs.map(\.url)) }
+                let freshURLs = Set(search.nodes.map(\.url))
+                let candidates = cachedPRs
+                    .filter { !freshURLs.contains($0.url) }
+                    .compactMap { GitHubClient.PRRef(url: $0.url, nameWithOwner: $0.repository.nameWithOwner, number: $0.number) }
+                guard !candidates.isEmpty else { return freshURLs }
+                return freshURLs.union(GitHubClient.openURLs(among: candidates))
+            }()
+
             await MainActor.run {
                 self.reloadJobsRegistry()
                 if let search = authoredResult {
-                    self.mergeFirstPage(search.nodes)
+                    self.mergeFirstPage(search.nodes,
+                                        hasNextPage: search.pageInfo.hasNextPage,
+                                        stillOpen: stillOpenURLs)
                     self.totalCount = search.issueCount
                     self.cursor = search.pageInfo.hasNextPage ? search.pageInfo.endCursor : nil
                     self.hasMore = self.cursor != nil
@@ -568,11 +587,16 @@ final class PRStore: ObservableObject {
     }
 
     /// Merge a fresh page-1 response into `self.prs` while preserving deeper
-    /// pages already loaded. Strategy: PRs in the freshness window (newer than
-    /// or equal to the oldest fresh PR) MUST appear in `fresh` to survive —
-    /// otherwise they're merged/closed and we drop them. PRs older than that
-    /// window are kept as-is.
-    private func mergeFirstPage(_ fresh: [PullRequest]) {
+    /// pages already loaded. In-window PRs (updatedAt ≥ cutoff) MUST appear in
+    /// `fresh` to survive — otherwise they're merged/closed and we drop them.
+    /// Deeper-than-window PRs are kept only if they were verified still OPEN
+    /// (`stillOpen`); without that check, closed PRs that happened to sit
+    /// below page 1's cutoff would never leave the cache.
+    /// When `!hasNextPage`, fresh is the entire universe of open PRs — nothing
+    /// to preserve.
+    private func mergeFirstPage(_ fresh: [PullRequest],
+                                hasNextPage: Bool,
+                                stillOpen: Set<String>) {
         guard let cutoff = fresh.map(\.updatedAt).min() else {
             // empty result — drop everything in the window (which is everything)
             prs = []
@@ -580,15 +604,21 @@ final class PRStore: ObservableObject {
             recomputeFilteredLists()
             return
         }
-        // Keep deeper-than-window PRs as-is; in-window PRs come from `fresh`
-        // (so missing ones — merged/closed since last refresh — get dropped).
-        let preserved = prs.filter { $0.updatedAt < cutoff }
+        let preserved: [PullRequest]
+        if !hasNextPage {
+            preserved = []
+        } else {
+            preserved = prs.filter { $0.updatedAt < cutoff && stillOpen.contains($0.url) }
+        }
         let merged = fresh + preserved
         // Sort updated-desc to match GitHub's ordering, in case a stale PR's
         // updatedAt now sits between fresh items.
         prs = merged.sorted { $0.updatedAt > $1.updatedAt }
         // Invalidate cached statuses for fresh URLs (their fields just changed).
         for pr in fresh { statusCache.removeValue(forKey: pr.url) }
+        // Drop status cache entries for PRs that left the list entirely.
+        let kept = Set(prs.map(\.url))
+        statusCache = statusCache.filter { kept.contains($0.key) }
         recomputeFilteredLists()
     }
 
