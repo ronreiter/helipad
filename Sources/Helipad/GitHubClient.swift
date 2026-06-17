@@ -92,6 +92,72 @@ struct GitHubClient {
         }
     }
 
+    /// Reference to a PR by `repo` (owner/name) + `number` — enough to look up
+    /// `state` without re-running search. Used to verify whether locally-cached
+    /// PRs deeper than the freshness window are still open.
+    struct PRRef: Hashable {
+        let url: String
+        let owner: String
+        let repo: String
+        let number: Int
+
+        init?(url: String, nameWithOwner: String, number: Int) {
+            let parts = nameWithOwner.split(separator: "/", maxSplits: 1)
+            guard parts.count == 2 else { return nil }
+            self.url = url
+            self.owner = String(parts[0])
+            self.repo = String(parts[1])
+            self.number = number
+        }
+    }
+
+    /// Returns the subset of `refs` whose PRs are still OPEN on GitHub.
+    /// One batched GraphQL call (aliases per ref) instead of N round trips.
+    /// On API failure, falls back to keeping all refs — better to show a
+    /// stale-but-likely-still-open PR than to wrongly drop a live one.
+    static func openURLs(among refs: [PRRef]) -> Set<String> {
+        guard !refs.isEmpty else { return [] }
+        guard let gh = ghPath() else { return Set(refs.map(\.url)) }
+
+        var pieces: [String] = []
+        for (i, ref) in refs.enumerated() {
+            pieces.append(
+                "r\(i): repository(owner: \"\(ref.owner)\", name: \"\(ref.repo)\") { pullRequest(number: \(ref.number)) { url state } }"
+            )
+        }
+        let query = "query { \(pieces.joined(separator: "\n")) }"
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gh)
+        process.arguments = ["api", "graphql", "-f", "query=\(query)"]
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        do { try process.run() } catch { return Set(refs.map(\.url)) }
+        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
+        _ = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return Set(refs.map(\.url)) }
+
+        // Response shape: { "data": { "r0": { "pullRequest": { "url": "...", "state": "OPEN" } | null }, ... } }
+        guard let root = try? JSONSerialization.jsonObject(with: outputData) as? [String: Any],
+              let data = root["data"] as? [String: Any] else {
+            return Set(refs.map(\.url))
+        }
+        var open: Set<String> = []
+        for value in data.values {
+            guard let repo = value as? [String: Any],
+                  let pr = repo["pullRequest"] as? [String: Any],
+                  let url = pr["url"] as? String,
+                  let state = pr["state"] as? String,
+                  state == "OPEN" else { continue }
+            open.insert(url)
+        }
+        return open
+    }
+
     /// Fetches everything (used by --dump).
     static func fetchPullRequests() throws -> (total: Int, prs: [PullRequest]) {
         var prs: [PullRequest] = []
