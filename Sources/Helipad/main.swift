@@ -100,6 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// persisted setting; clicking flips it.
     private func notificationsMenuItem() -> NSMenuItem {
         let submenu = NSMenu()
+        let enable = NSMenuItem(title: "Enable notifications…", action: #selector(enableNotifications), keyEquivalent: "")
+        enable.target = self
+        submenu.addItem(enable)
+        submenu.addItem(.separator())
         let review = NSMenuItem(title: "Review requested", action: #selector(toggleReviewAlert(_:)), keyEquivalent: "")
         review.target = self
         review.state = store.alertOnReviewRequested ? .on : .off
@@ -143,6 +147,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let on = !store.alertOnCommented
         store.setAlertOnCommented(on)
         sender.state = on ? .on : .off
+    }
+
+    @objc private func enableNotifications() {
+        Notifier.shared.promptForAuthorization()
     }
 }
 

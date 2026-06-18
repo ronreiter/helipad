@@ -31,7 +31,9 @@ Helipad posts a macOS notification — click it to open the PR — when a PR new
 - **My PR changes requested** — one of your PRs is sent back with changes.
 - **My PR commented** — a human left a comment-only review on one of your PRs.
 
-Each PR notifies only once: refreshes, scrolling, and app restarts never re-fire, and the first launch adopts your existing backlog silently instead of blasting a notification per PR. If a PR leaves the relevant state and later re-enters it, it notifies again. Notifications require the bundled app from the DMG; bare `swift build` binaries have no bundle identifier, so macOS can't deliver notifications for them.
+Each PR notifies only once: refreshes, scrolling, and app restarts never re-fire, and the first launch adopts your existing backlog silently instead of blasting a notification per PR. If a PR leaves the relevant state and later re-enters it, it notifies again.
+
+Helipad asks for notification permission on first launch. If you ever denied it (macOS won't ask again), **Notifications → Enable notifications…** in the menu bar re-prompts, or jumps you straight to the right System Settings pane — so you never have to hunt for it. Notifications require the bundled app from the DMG; bare `swift build` binaries have no bundle identifier, so macOS can't deliver notifications for them.
 
 ## Requirements
 
