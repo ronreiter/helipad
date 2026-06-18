@@ -75,6 +75,11 @@ final class PRStore: ObservableObject {
     private static let nicknamesKey = "prNicknames"
     private static let originalTitlesKey = "originalTitles"
     private static let notifiedKey = "notifiedBlockedPRs"
+    private static let notifiedReviewKey = "notifiedReviewPRs"
+    private static let alertReviewKey = "alertOnReviewRequested"
+    private static let alertApprovedKey = "alertOnApproved"
+    private static let alertChangesKey = "alertOnChangesRequested"
+    private static let alertCommentedKey = "alertOnCommented"
     private static let cachedPRsKey = "cachedPRs"
     private static let cachedReviewPRsKey = "cachedReviewPRs"
     private static let cachedUpdatedKey = "cachedLastUpdated"
@@ -96,6 +101,21 @@ final class PRStore: ObservableObject {
     /// PRs is seeded silently instead of firing a notification per PR.
     private var notificationsSeeded: Bool
     private var armNotificationsOnNextRefresh = false
+
+    /// URLs already notified as awaiting-my-review (the "Blocking" tab). Kept
+    /// separate from `notifiedBlockedURLs`, under its own key, so the existing
+    /// review backlog seeds silently on the first run *after this feature ships*
+    /// instead of firing one alert per PR already awaiting review.
+    private var notifiedReviewURLs: Set<String>
+    private var reviewNotificationsSeeded: Bool
+    private var armReviewNotificationsOnNextRefresh = false
+
+    /// Which events post a macOS notification. All default on; toggled from the
+    /// menu-bar Notifications submenu.
+    @Published private(set) var alertOnReviewRequested: Bool
+    @Published private(set) var alertOnApproved: Bool
+    @Published private(set) var alertOnChangesRequested: Bool
+    @Published private(set) var alertOnCommented: Bool
 
     /// Filtered views — kept as stored @Published arrays so SwiftUI body
     /// re-renders (e.g. tab switches) don't re-run the filter+statuses pass
@@ -293,6 +313,30 @@ final class PRStore: ObservableObject {
         UserDefaults.standard.set(groupByCluster, forKey: Self.groupByClusterKey)
     }
 
+    func setAlertOnReviewRequested(_ on: Bool) {
+        alertOnReviewRequested = on
+        guard !isDemo else { return }
+        UserDefaults.standard.set(on, forKey: Self.alertReviewKey)
+    }
+
+    func setAlertOnApproved(_ on: Bool) {
+        alertOnApproved = on
+        guard !isDemo else { return }
+        UserDefaults.standard.set(on, forKey: Self.alertApprovedKey)
+    }
+
+    func setAlertOnChangesRequested(_ on: Bool) {
+        alertOnChangesRequested = on
+        guard !isDemo else { return }
+        UserDefaults.standard.set(on, forKey: Self.alertChangesKey)
+    }
+
+    func setAlertOnCommented(_ on: Bool) {
+        alertOnCommented = on
+        guard !isDemo else { return }
+        UserDefaults.standard.set(on, forKey: Self.alertCommentedKey)
+    }
+
     private func persistClusterNames() {
         guard !isDemo else { return }
         UserDefaults.standard.set(clusterNames, forKey: Self.clusterNamesKey)
@@ -326,11 +370,24 @@ final class PRStore: ObservableObject {
             clusterColors = [:]
             notifiedBlockedURLs = []
             notificationsSeeded = true
+            notifiedReviewURLs = []
+            reviewNotificationsSeeded = true
+            alertOnReviewRequested = true
+            alertOnApproved = true
+            alertOnChangesRequested = true
+            alertOnCommented = true
             return
         }
         let notified = UserDefaults.standard.stringArray(forKey: Self.notifiedKey)
         notifiedBlockedURLs = Set(notified ?? [])
         notificationsSeeded = notified != nil
+        let notifiedReview = UserDefaults.standard.stringArray(forKey: Self.notifiedReviewKey)
+        notifiedReviewURLs = Set(notifiedReview ?? [])
+        reviewNotificationsSeeded = notifiedReview != nil
+        alertOnReviewRequested = UserDefaults.standard.object(forKey: Self.alertReviewKey) as? Bool ?? true
+        alertOnApproved = UserDefaults.standard.object(forKey: Self.alertApprovedKey) as? Bool ?? true
+        alertOnChangesRequested = UserDefaults.standard.object(forKey: Self.alertChangesKey) as? Bool ?? true
+        alertOnCommented = UserDefaults.standard.object(forKey: Self.alertCommentedKey) as? Bool ?? true
         // "dismissedPRs" is the legacy key from when archiving was "Remove"
         let stored = UserDefaults.standard.stringArray(forKey: Self.archivedKey)
             ?? UserDefaults.standard.stringArray(forKey: "dismissedPRs")
@@ -535,6 +592,10 @@ final class PRStore: ObservableObject {
             notificationsSeeded = true
             armNotificationsOnNextRefresh = false
         }
+        if armReviewNotificationsOnNextRefresh {
+            reviewNotificationsSeeded = true
+            armReviewNotificationsOnNextRefresh = false
+        }
         isLoading = true
         let cachedPRs = self.prs
         Task.detached(priority: .userInitiated) {
@@ -580,6 +641,7 @@ final class PRStore: ObservableObject {
                 self.isLoading = false
                 self.autoFillCount = 0
                 self.notifyNewlyBlocked()
+                self.notifyNewReviewRequests()
                 self.persistCache()
                 self.fillIfNeeded()
             }
@@ -671,13 +733,49 @@ final class PRStore: ObservableObject {
             armNotificationsOnNextRefresh = true
         } else {
             for pr in blockedOnMePRs where !notifiedBlockedURLs.contains(pr.url) {
-                Notifier.shared.notifyBlocked(pr)
+                // A blocked PR is in exactly one of these states at a time
+                // (effectiveReviewDecision is single-valued). Gate the alert on
+                // its toggle, but mark notified regardless so turning a toggle
+                // on later affects only future PRs — never a backlog blast.
+                let s = statuses(of: pr)
+                if s.contains(.approved), alertOnApproved {
+                    Notifier.shared.notify(pr, title: "PR approved — ready to merge")
+                } else if s.contains(.changesRequested), alertOnChangesRequested {
+                    Notifier.shared.notify(pr, title: "Changes requested on your PR")
+                } else if s.contains(.commented), alertOnCommented {
+                    Notifier.shared.notify(pr, title: "New comment on your PR")
+                }
                 notifiedBlockedURLs.insert(pr.url)
             }
             let seenUnblocked = Set(prs.map(\.url)).subtracting(blockedURLs)
             notifiedBlockedURLs.subtract(seenUnblocked)
         }
         UserDefaults.standard.set(Array(notifiedBlockedURLs), forKey: Self.notifiedKey)
+    }
+
+    /// Fires one notification per PR newly awaiting your review (the "Blocking"
+    /// tab). Tracks the full `prsToReview` queue — independent of the UI repo
+    /// filter — so a filter change never re-fires and you never miss a PR
+    /// blocking on you. Archived PRs are skipped (you dismissed them). Seeds
+    /// silently on the first run after this feature ships via its own key.
+    private func notifyNewReviewRequests() {
+        let reviewURLs = Set(prsToReview.map(\.url))
+        if !reviewNotificationsSeeded {
+            notifiedReviewURLs.formUnion(reviewURLs)
+            armReviewNotificationsOnNextRefresh = true
+        } else {
+            for pr in prsToReview where !notifiedReviewURLs.contains(pr.url) {
+                if alertOnReviewRequested, !archivedURLs.contains(pr.url) {
+                    Notifier.shared.notify(pr, title: "PR awaiting your review")
+                }
+                notifiedReviewURLs.insert(pr.url)
+            }
+            // `prsToReview` is the full current review queue (page 1, replaced
+            // each refresh); anything no longer present has left your queue, so
+            // drop it — a future re-request notifies again.
+            notifiedReviewURLs.formIntersection(reviewURLs)
+        }
+        UserDefaults.standard.set(Array(notifiedReviewURLs), forKey: Self.notifiedReviewKey)
     }
 
     /// Filters can hide most of a page, leaving a tab too short to scroll —

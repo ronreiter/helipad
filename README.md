@@ -24,7 +24,14 @@ A filter menu (funnel icon) controls which statuses are shown; by default only P
 
 ## Notifications
 
-When a PR becomes blocked on you (approved and ready to merge, or sent back with changes requested), Helipad posts a macOS notification — click it to open the PR. Each PR notifies only once: refreshes, scrolling, and app restarts never re-fire, and the first launch adopts your existing backlog silently instead of blasting a notification per PR. If a PR leaves the blocked state (e.g. you re-request review) and later becomes blocked again, it notifies again. Notifications require the bundled app from the DMG; bare `swift build` binaries have no bundle identifier, so macOS can't deliver notifications for them.
+Helipad posts a macOS notification — click it to open the PR — when a PR newly needs your attention. Three event types, each independently toggleable from the menu-bar **Notifications** submenu (all on by default):
+
+- **Review requested** — a new PR lands in the "Blocking" tab (someone requested your review). Tracked across your whole review queue, independent of the in-app repo filter, so you never miss one.
+- **My PR approved** — one of your PRs is approved and ready to merge.
+- **My PR changes requested** — one of your PRs is sent back with changes.
+- **My PR commented** — a human left a comment-only review on one of your PRs.
+
+Each PR notifies only once: refreshes, scrolling, and app restarts never re-fire, and the first launch adopts your existing backlog silently instead of blasting a notification per PR. If a PR leaves the relevant state and later re-enters it, it notifies again. Notifications require the bundled app from the DMG; bare `swift build` binaries have no bundle identifier, so macOS can't deliver notifications for them.
 
 ## Requirements
 
@@ -42,7 +49,7 @@ swift build -c release
 .build/release/Helipad &
 ```
 
-The panel hovers at the top-right of your screen (always on top, visible on all Spaces) and can be dragged anywhere. A menu-bar icon lets you show/hide the panel, refresh, or quit. There is no dock icon.
+The panel hovers at the top-right of your screen (always on top, visible on all Spaces) and can be dragged anywhere. A menu-bar icon lets you show/hide the panel, refresh, toggle which notifications fire, or quit. There is no dock icon.
 
 To test the data fetch without launching the GUI:
 

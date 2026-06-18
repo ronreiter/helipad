@@ -62,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Show/Hide Panel", action: #selector(togglePanel), keyEquivalent: "p"))
         menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refresh), keyEquivalent: "r"))
         menu.addItem(.separator())
+        menu.addItem(notificationsMenuItem())
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
 
@@ -92,6 +94,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refresh() {
         store.refresh()
+    }
+
+    /// Submenu of per-condition notification toggles. Checkmark reflects the
+    /// persisted setting; clicking flips it.
+    private func notificationsMenuItem() -> NSMenuItem {
+        let submenu = NSMenu()
+        let review = NSMenuItem(title: "Review requested", action: #selector(toggleReviewAlert(_:)), keyEquivalent: "")
+        review.target = self
+        review.state = store.alertOnReviewRequested ? .on : .off
+        submenu.addItem(review)
+        let approved = NSMenuItem(title: "My PR approved", action: #selector(toggleApprovedAlert(_:)), keyEquivalent: "")
+        approved.target = self
+        approved.state = store.alertOnApproved ? .on : .off
+        submenu.addItem(approved)
+        let changes = NSMenuItem(title: "My PR changes requested", action: #selector(toggleChangesAlert(_:)), keyEquivalent: "")
+        changes.target = self
+        changes.state = store.alertOnChangesRequested ? .on : .off
+        submenu.addItem(changes)
+        let commented = NSMenuItem(title: "My PR commented", action: #selector(toggleCommentedAlert(_:)), keyEquivalent: "")
+        commented.target = self
+        commented.state = store.alertOnCommented ? .on : .off
+        submenu.addItem(commented)
+        let root = NSMenuItem(title: "Notifications", action: nil, keyEquivalent: "")
+        root.submenu = submenu
+        return root
+    }
+
+    @objc private func toggleReviewAlert(_ sender: NSMenuItem) {
+        let on = !store.alertOnReviewRequested
+        store.setAlertOnReviewRequested(on)
+        sender.state = on ? .on : .off
+    }
+
+    @objc private func toggleApprovedAlert(_ sender: NSMenuItem) {
+        let on = !store.alertOnApproved
+        store.setAlertOnApproved(on)
+        sender.state = on ? .on : .off
+    }
+
+    @objc private func toggleChangesAlert(_ sender: NSMenuItem) {
+        let on = !store.alertOnChangesRequested
+        store.setAlertOnChangesRequested(on)
+        sender.state = on ? .on : .off
+    }
+
+    @objc private func toggleCommentedAlert(_ sender: NSMenuItem) {
+        let on = !store.alertOnCommented
+        store.setAlertOnCommented(on)
+        sender.state = on ? .on : .off
     }
 }
 

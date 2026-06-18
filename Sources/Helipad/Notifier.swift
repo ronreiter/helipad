@@ -15,10 +15,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func notifyBlocked(_ pr: PullRequest) {
+    /// Posts a notification for `pr` with a condition-specific `title`
+    /// (e.g. "PR approved — ready to merge", "PR awaiting your review").
+    func notify(_ pr: PullRequest, title: String) {
         guard isAvailable else { return }
         let content = UNMutableNotificationContent()
-        content.title = "PR blocked on you"
+        content.title = title
         content.subtitle = "\(pr.repoShortName) #\(pr.number)"
         content.body = pr.title
         content.sound = .default
