@@ -51,7 +51,9 @@ swift build -c release
 .build/release/Helipad &
 ```
 
-The panel hovers at the top-right of your screen (always on top, visible on all Spaces) and can be dragged anywhere. A menu-bar icon lets you show/hide the panel, refresh, toggle which notifications fire, or quit. There is no dock icon.
+By default Helipad lives in the **menu bar**: click the menu-bar icon to drop the panel down as a popover, click outside to dismiss it. The icon shows the Helipad logo, which turns **red with a count badge** (1–9, then "9+") whenever PRs are blocked on you. There is no dock icon.
+
+Right-click (or control-click) the menu-bar icon for the menu, where you can switch between **Open in Menu Bar** (the default popover) and **Open as Floating Panel** — an always-on-top window that hovers at the top-right of your screen, is visible on all Spaces, and can be dragged anywhere. The choice is remembered across launches. The menu also lets you refresh, toggle which notifications fire, or quit.
 
 To test the data fetch without launching the GUI:
 
